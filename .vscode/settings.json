@@ -1,0 +1,29 @@
+{
+  "typescript.tsdk": ".yarn/sdks/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "files.exclude": {
+    ".vscode/": true,
+    ".gitignore": true,
+    ".yarn/": true,
+    ".yarnrc.yml": true,
+    ".pnp.cjs": true,
+    "yarn.lock": true,
+    "tsconfig.json": true,
+    ".*.json": true,
+    "*.tsbuildinfo": true,
+    "dist/": true,
+    "cache/": true,
+    "artifacts/": true,
+    "typechain/": true,
+  },
+  "search.exclude": {
+    "**/.yarn": true,
+    "**/.pnp.*": true
+  },
+  "mochaExplorer.files": "test/**/*.[tj]s",
+  "mochaExplorer.pruneFiles": true,
+  "mochaExplorer.exit": true,
+  "mochaExplorer.autoload": "onStart",
+  "mochaExplorer.timeout": 120000,
+  "mochaExplorer.parallel": true
+}

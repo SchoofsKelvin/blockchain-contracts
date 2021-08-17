@@ -1,0 +1,86 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"dependsOn": [
+				"Watch contracts",
+				"Watch TypeScript"
+			],
+			"group": "build",
+			"label": "Full development mode",
+			"detail": "Start all watch tasks"
+		},
+		{
+			"type": "shell",
+			"command": "yarn",
+			"args": [
+				"watch:hh"
+			],
+			"problemMatcher": [
+				{
+					"background": {
+						"activeOnStart": false,
+						"beginsPattern": "^Compiling",
+						"endsPattern": "^(Successfully generated Typechain artifacts!|Task .* failed)$"
+					},
+					"fileLocation": "relative",
+					"owner": "hardhat",
+					"source": "solidity",
+					"severity": "warning",
+					"pattern": [
+						{
+							"regexp": "^Warning: (.*)$",
+							"message": 1
+						},
+						{
+							"regexp": "^\\s*\\-\\-> (.*):(\\d+):(\\d+):$",
+							"file": 1,
+							"line": 2,
+							"column": 3
+						}
+					]
+				},
+				{
+					"background": {
+						"activeOnStart": false,
+						"beginsPattern": "^Compiling",
+						"endsPattern": "^(Successfully generated Typechain artifacts!|Task .* failed\\.)$"
+					},
+					"fileLocation": "relative",
+					"owner": "hardhat",
+					"source": "solidity",
+					"severity": "error",
+					"pattern": [
+						{
+							"regexp": "^.*?Error: (.*)$",
+							"message": 1
+						},
+						{
+							"regexp": "^\\s*\\-\\-> (.*):(\\d+):(\\d+):$",
+							"file": 1,
+							"line": 2,
+							"column": 3
+						}
+					]
+				}
+			],
+			"label": "Watch contracts",
+			"detail": "Automatically run hardhat typechain when contracts change",
+			"isBackground": true
+		},
+		{
+			"type": "shell",
+			"command": "yarn",
+			"args": [
+				"watch:tsc"
+			],
+			"group": "build",
+			"problemMatcher": [
+				"$tsc-watch"
+			],
+			"label": "Watch TypeScript",
+			"detail": "Start tsc in watch mode for the scripts/tests directories",
+			"isBackground": true
+		}
+	]
+}

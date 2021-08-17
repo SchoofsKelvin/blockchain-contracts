@@ -1,0 +1,47 @@
+diff --git a/package.json b/package.json
+index 377f6bbb16cbdda7cd837ce0c953774737b2c6ec..070e783485661ac2ac768fd2c44a8943e0b25f63 100644
+--- a/package.json
++++ b/package.json
+@@ -19,7 +19,6 @@
+   },
+   "dependencies": {
+     "@aragon/provided-connector": "^6.0.8",
+-    "@typescript-eslint/parser": "^4.1.0",
+     "@web3-react/core": "^6.1.1",
+     "@web3-react/fortmatic-connector": "^6.1.6",
+     "@web3-react/frame-connector": "^6.0.9",
+@@ -38,34 +37,6 @@
+       "pre-commit": "tsdx lint"
+     }
+   },
+-  "devDependencies": {
+-    "@types/react": "^16.9.49",
+-    "@types/react-dom": "^16.9.8",
+-    "@typescript-eslint/eslint-plugin": "^4.1.0",
+-    "@web3-react/abstract-connector": "^6.0.7",
+-    "babel-eslint": "^10.1.0",
+-    "eslint": "^7.8.1",
+-    "eslint-config-prettier": "^6.9.0",
+-    "eslint-config-react-app": "^5.2.1",
+-    "eslint-config-standard": "^14.1.0",
+-    "eslint-config-standard-react": "^9.2.0",
+-    "eslint-plugin-flowtype": "^5.2.0",
+-    "eslint-plugin-import": "^2.20.0",
+-    "eslint-plugin-jsx-a11y": "^6.3.1",
+-    "eslint-plugin-node": "^11.0.0",
+-    "eslint-plugin-prettier": "^3.1.2",
+-    "eslint-plugin-promise": "^4.2.1",
+-    "eslint-plugin-react": "^7.20.6",
+-    "eslint-plugin-react-hooks": "^4.1.0",
+-    "eslint-plugin-standard": "^4.0.1",
+-    "husky": "^4.3.0",
+-    "prettier": "^2.1.1",
+-    "react": "^16.13.1",
+-    "react-dom": "^16.13.1",
+-    "tsdx": "^0.14.1",
+-    "tslib": "^2.0.1",
+-    "typescript": "^4.0.2"
+-  },
+   "peerDependencies": {
+     "react": "^16.12.0"
+   }
