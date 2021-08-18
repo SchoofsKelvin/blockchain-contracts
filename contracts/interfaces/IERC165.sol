@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: MIT
+
+pragma solidity ^0.8.0;
+
+bytes4 constant IERC165_INTERFACE_ID = 0x01ffc9a7;
+
+// interfaceID = bytes4(keccak256('supportsInterface(bytes4)')) = 0x01ffc9a7
+interface IERC165 {
+    /// @notice Query if a contract implements an interface
+    /// @param interfaceID The interface identifier, as specified in ERC-165
+    /// @dev Interface identification is specified in ERC-165. This function
+    ///  uses less than 30,000 gas.
+    /// @return `true` if the contract implements `interfaceID` and
+    ///  `interfaceID` is not 0xffffffff, `false` otherwise
+    function supportsInterface(bytes4 interfaceID) external view returns (bool);
+}
