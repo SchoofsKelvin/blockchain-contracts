@@ -22,14 +22,28 @@ struct PaymentSharePeriod {
  * Payees can be added/removed (and shares can be increased/decreased) at any time.
  * These payee/share modifications won't affect past payments and the payees/share at the time of those payments.
  */
-abstract contract PaymentShareSplitterBase { // is IPaymentAgent, IERC165 {
+abstract contract PaymentShareSplitterBase is IERC165, IPaymentAgent {
 	using AddressUpgradeable for address;
 	using AddressUpgradeable for address payable;
 
 	/* Internal events */
+
+	/**
+	 * Called when a payee gets shares for the first time.
+	 * PayeeAdded will be emitted by the base contract, don't emit it yourself!
+	 */
 	function _onPayeeAdded(address payee) internal virtual {}
+
+	/** Called when the shares of a payee changes */
 	function _onSharesChanged(address payee, uint256 shares) internal virtual {}
-	function _onPaymentReleased(address payee, uint256 amount) internal virtual {}
+
+	/**
+	 * Called when (a part of) the funds owed to a payee are paid out.
+	 * PaymentsReleased will be emitted by the base contract, don't emit it yourself!
+	 */
+	function _onPaymentsReleased(address payee, uint256 amount) internal virtual {}
+
+	/* Storage */
 
 	uint256 internal _totalPaymentReleased;
 
@@ -55,9 +69,35 @@ abstract contract PaymentShareSplitterBase { // is IPaymentAgent, IERC165 {
 		period.id = 1;
 	}
 
-	/** @dev Register funds (in this contract) as part of the payments */
-	function _paymentReceived(uint256 value) internal {
+	/* IPaymentAgent */
+
+	function availablePayments(address payee) override external view returns (uint256 amount) {
+		if (!_isPayee(payee)) return 0;
+		amount = _calculatePendingPaymentsSince(payee, 0);
+	}
+
+	function withdrawPayments() override external returns (uint256) {
+		return withdrawPaymentsFor(msg.sender);
+	}
+
+	function withdrawPaymentsFor(address payee) override public returns (uint256 amount) {
+		uint256 previous = _paymentReleasePeriod[payee];
+		// Release the owed amount (which handles payment and event logging)
+		amount = _releasePaymentsSince(payable(payee), _paymentPeriodIdToIndex(previous));
+		// Update this so we know for next time
+		_paymentReleasePeriod[payee] = _currentPaymentSharePeriod().id;
+	}
+
+	/** @dev Register funds (in this contract) as part of the payments. Emits PaymentReceived */
+	function _paymentReceived(address payer, uint256 value) internal {
 		_currentPaymentSharePeriod().totalReceived += value;
+		emit PaymentReceived(payer, value);
+	}
+
+	/* IERC165 */
+	function supportsInterface(bytes4 interfaceID) override public pure returns (bool) {
+		assert(type(IPaymentAgent).interfaceId == IPaymentAgent_INTERFACE_ID);
+		return interfaceID == IERC165_INTERFACE_ID || interfaceID == IPaymentAgent_INTERFACE_ID;
 	}
 
 	/* PaymentSharePeriod information */
@@ -138,7 +178,8 @@ abstract contract PaymentShareSplitterBase { // is IPaymentAgent, IERC165 {
 		_totalPaymentReleased += amount;
 		// Do the payment and event logging
 		payee.sendValue(amount);
-		_onPaymentReleased(payee, amount);
+		_onPaymentsReleased(payee, amount);
+		emit PaymentsReleased(payee, amount);
 	}
 
 	/**
@@ -208,6 +249,7 @@ abstract contract PaymentShareSplitterBase { // is IPaymentAgent, IERC165 {
 				newPeriod.shares.push(share);
 				new_totalPaymentShares += share;
 				_onPayeeAdded(payee);
+				emit PayeeAdded(payee);
 			} else {
 				uint256 index = _payeeIndex[payee];
 				new_totalPaymentShares = new_totalPaymentShares - newPeriod.shares[index] + share;

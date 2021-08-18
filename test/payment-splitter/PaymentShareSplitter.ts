@@ -6,7 +6,8 @@ import * as chai from 'chai';
 import { solidity } from 'ethereum-waffle';
 import { ethers } from 'hardhat';
 import type { Suite } from 'mocha';
-import { PaymentShareSplitter, PaymentShareSplitter__factory } from '../../typechain';
+import { getInterfaceHash } from '../../scripts/utils';
+import { IERC165__factory, IPaymentAgent__factory, PaymentShareSplitter, PaymentShareSplitter__factory } from '../../typechain';
 import { before, logEvents } from '../utils';
 
 const { expect } = chai.use(solidity);
@@ -43,6 +44,30 @@ describe('PaymentShareSplitter', () => {
                 .and.to.emit(splitter, 'PayeeAdded').withArgs(payee1.address)
                 .and.to.emit(splitter, 'SharesChanged').withArgs(payee0.address, 5)
                 .and.to.emit(splitter, 'SharesChanged').withArgs(payee1.address, 1);
+        });
+
+        describe('supportsInterface', () => {
+            it('validate IERC165 with util', async () => {
+                const calculated = getInterfaceHash(IERC165__factory);
+                expect(calculated).to.equal('0x01ffc9a7');
+            });
+            it('IERC165', async () => {
+                expect(await splitter.supportsInterface('0x01ffc9a7')).to.be.true;
+            });
+
+            it('validate IPaymentAgent with util', async () => {
+                const calculated = getInterfaceHash(IPaymentAgent__factory, IERC165__factory);
+                expect(calculated).to.equal('0x79320088');
+            });
+            it('IPaymentAgent', async () => {
+                expect(await splitter.supportsInterface('0x79320088')).to.be.true;
+            });
+
+            it('random', async () => {
+                expect(await splitter.supportsInterface('0x00000000'), '0x00000000').to.be.false;
+                expect(await splitter.supportsInterface('0x12345678'), '0x12345678').to.be.false;
+                expect(await splitter.supportsInterface('0xFFFFFFFF'), '0xFFFFFFFF').to.be.false;
+            });
         });
 
         describe('Public fields', () => {
@@ -108,6 +133,14 @@ describe('PaymentShareSplitter', () => {
             });
         });
 
+        describe('IPaymentAgent', () => {
+            it('availablePayments', async () => {
+                expect(await splitter.availablePayments(admin.address), 'admin').to.equal(0);
+                expect(await splitter.availablePayments(payee0.address), 'payee0').to.equal(50);
+                expect(await splitter.availablePayments(payee1.address), 'payee1').to.equal(10);
+            });
+        });
+
         describe('Payee information', () => {
             it('sharesOf', async () => {
                 expect(await splitter.sharesOf(admin.address), 'admin').to.equal(0);
@@ -165,7 +198,7 @@ describe('PaymentShareSplitter', () => {
         });
 
         before('first release', async () => {
-            releaseTx = await splitter.release(payee0.address);
+            releaseTx = await splitter.withdrawPaymentsFor(payee0.address);
         });
 
         it('should change payee balance', async () => {
@@ -174,7 +207,7 @@ describe('PaymentShareSplitter', () => {
 
         it('should emit an event', async () => {
             await expect(releaseTx)
-                .to.emit(splitter, 'PaymentReleased')
+                .to.emit(splitter, 'PaymentsReleased')
                 .withArgs(payee0.address, 50);
         });
 
@@ -187,9 +220,9 @@ describe('PaymentShareSplitter', () => {
         });
 
         it('should do nothing for a second release', async () => {
-            await expect(await splitter.release(payee0.address))
+            await expect(await splitter.withdrawPaymentsFor(payee0.address))
                 .to.changeEtherBalance(payee0, 0)
-                .and.to.not.emit(splitter, 'PaymentReleased');
+                .and.to.not.emit(splitter, 'PaymentsReleased');
             expect(await splitter.totalReleased()).to.equal(50);
             expect(await splitter.released(payee0.address)).to.equal(50);
         });
@@ -227,8 +260,8 @@ describe('PaymentShareSplitter', () => {
         });
 
         before('releases', async () => {
-            release0Tx = await splitter.release(payee0.address);
-            release1Tx = await splitter.release(payee1.address);
+            release0Tx = await splitter.withdrawPaymentsFor(payee0.address);
+            release1Tx = await splitter.withdrawPaymentsFor(payee1.address);
         });
 
         it('should change payee balances', async () => {
@@ -238,10 +271,10 @@ describe('PaymentShareSplitter', () => {
 
         it('should emit events', async () => {
             await expect(release0Tx, 'release0Tx')
-                .to.emit(splitter, 'PaymentReleased')
+                .to.emit(splitter, 'PaymentsReleased')
                 .withArgs(payee0.address, 50);
             await expect(release1Tx, 'release1Tx')
-                .to.emit(splitter, 'PaymentReleased')
+                .to.emit(splitter, 'PaymentsReleased')
                 .withArgs(payee1.address, 10);
         });
 
@@ -255,14 +288,14 @@ describe('PaymentShareSplitter', () => {
         });
 
         it('should do nothing for a second release', async () => {
-            await expect(await splitter.release(payee0.address))
+            await expect(await splitter.withdrawPaymentsFor(payee0.address))
                 .to.changeEtherBalance(payee0, 0)
-                .and.to.not.emit(splitter, 'PaymentReleased');
+                .and.to.not.emit(splitter, 'PaymentsReleased');
             expect(await splitter.totalReleased()).to.equal(60);
             expect(await splitter.released(payee0.address)).to.equal(50);
-            await expect(await splitter.release(payee1.address))
+            await expect(await splitter.withdrawPaymentsFor(payee1.address))
                 .to.changeEtherBalance(payee1, 0)
-                .and.to.not.emit(splitter, 'PaymentReleased');
+                .and.to.not.emit(splitter, 'PaymentsReleased');
             expect(await splitter.totalReleased()).to.equal(60);
             expect(await splitter.released(payee1.address)).to.equal(10);
         });
@@ -390,20 +423,26 @@ describe('PaymentShareSplitter', () => {
                     // payee1: 50*(1/5) = 10
                     expect(await splitter.calculatePendingSince(payee1.address, 2), 'payee1').to.equal(10);
                 });
+
+                it('IPaymentAgent.availablePayments', async () => {
+                    expect(await splitter.availablePayments(admin.address), 'admin').to.equal(0);
+                    expect(await splitter.availablePayments(payee0.address), 'payee0').to.equal(140);
+                    expect(await splitter.availablePayments(payee1.address), 'payee1').to.equal(60);
+                });
             });
 
-            describeSplitter('payee0 full release', () => {
+            describeSplitter('payee0 full release using withdrawPayments', () => {
                 before('add shares', () => splitter.addShares(payee0.address, 2));
-                before('add payment', () => admin.sendTransaction({ to: splitter.address, value: 50 }));
+                before('add payment', () => splitter['addPayment()']({ value: 50 }));
 
                 let releaseTx: ContractTransaction;
                 before('release', async () => {
-                    releaseTx = await splitter.release(payee0.address);
+                    releaseTx = await splitter.connect(payee0).withdrawPayments();
                 });
 
                 it('should emit events', async () => {
                     await expect(releaseTx)
-                        .to.emit(splitter, 'PaymentReleased')
+                        .to.emit(splitter, 'PaymentsReleased')
                         .withArgs(payee0.address, 140)
                         .and.to.changeEtherBalance(payee0, 140);
                 });
@@ -423,6 +462,51 @@ describe('PaymentShareSplitter', () => {
                     // payee1: 150*(1/3) + 50*(1/5) - 0   = 60
                     expect(await splitter.calculatePending(payee1.address), 'payee1').to.equal(60);
                 });
+
+                it('IPaymentAgent.availablePayments', async () => {
+                    expect(await splitter.availablePayments(admin.address), 'admin').to.equal(0);
+                    expect(await splitter.availablePayments(payee0.address), 'payee0').to.equal(0);
+                    expect(await splitter.availablePayments(payee1.address), 'payee1').to.equal(60);
+                });
+            });
+
+            describeSplitter('payee0 full release using withdrawPaymentsFor', () => {
+                before('add shares', () => splitter.addShares(payee0.address, 2));
+                before('add payment', () => admin.sendTransaction({ to: splitter.address, value: 50 }));
+
+                let releaseTx: ContractTransaction;
+                before('release', async () => {
+                    releaseTx = await splitter.withdrawPaymentsFor(payee0.address);
+                });
+
+                it('should emit events', async () => {
+                    await expect(releaseTx)
+                        .to.emit(splitter, 'PaymentsReleased')
+                        .withArgs(payee0.address, 140)
+                        .and.to.changeEtherBalance(payee0, 140);
+                });
+
+                it('totalReleased', async () => {
+                    expect(await splitter.totalReleased()).to.equal(140);
+                });
+
+                it('released', async () => {
+                    expect(await splitter.released(payee0.address)).to.equal(140);
+                    expect(await splitter.released(payee1.address)).to.equal(0);
+                });
+
+                it('calculatePending', async () => {
+                    // payee0: 150*(2/3) + 50*(4/5) - 140 = 0
+                    expect(await splitter.calculatePending(payee0.address), 'payee0').to.equal(0);
+                    // payee1: 150*(1/3) + 50*(1/5) - 0   = 60
+                    expect(await splitter.calculatePending(payee1.address), 'payee1').to.equal(60);
+                });
+
+                it('IPaymentAgent.availablePayments', async () => {
+                    expect(await splitter.availablePayments(admin.address), 'admin').to.equal(0);
+                    expect(await splitter.availablePayments(payee0.address), 'payee0').to.equal(0);
+                    expect(await splitter.availablePayments(payee1.address), 'payee1').to.equal(60);
+                });
             });
 
             describeSplitter('payee0 release since 2', () => {
@@ -436,7 +520,7 @@ describe('PaymentShareSplitter', () => {
 
                 it('should emit events', async () => {
                     await expect(releaseTx)
-                        .to.emit(splitter, 'PaymentReleased')
+                        .to.emit(splitter, 'PaymentsReleased')
                         .withArgs(payee0.address, 40)
                         .and.to.changeEtherBalance(payee0, 40);
                 });
@@ -456,6 +540,12 @@ describe('PaymentShareSplitter', () => {
                     // payee1: 150*(1/3) + 50*(1/5) - 0  = 60
                     expect(await splitter.calculatePending(payee1.address), 'payee1').to.equal(60);
                 });
+
+                it('IPaymentAgent.availablePayments', async () => {
+                    expect(await splitter.availablePayments(admin.address), 'admin').to.equal(0);
+                    expect(await splitter.availablePayments(payee0.address), 'payee0').to.equal(100);
+                    expect(await splitter.availablePayments(payee1.address), 'payee1').to.equal(60);
+                });
             });
 
             describeSplitter('payee0 release since 2 | payee0 full release', () => {
@@ -466,16 +556,16 @@ describe('PaymentShareSplitter', () => {
                 let release2Tx: ContractTransaction;
                 before('release', async () => {
                     release1Tx = await splitter.releaseSince(payee0.address, 2);
-                    release2Tx = await splitter.release(payee0.address);
+                    release2Tx = await splitter.withdrawPaymentsFor(payee0.address);
                 });
 
                 it('should emit events', async () => {
                     await expect(release1Tx, 'release1Tx')
-                        .to.emit(splitter, 'PaymentReleased')
+                        .to.emit(splitter, 'PaymentsReleased')
                         .withArgs(payee0.address, 40)
                         .and.to.changeEtherBalance(payee0, 40);
                     await expect(release2Tx, 'release2Tx')
-                        .to.emit(splitter, 'PaymentReleased')
+                        .to.emit(splitter, 'PaymentsReleased')
                         .withArgs(payee0.address, 100)
                         .and.to.changeEtherBalance(payee0, 100);
                 });
@@ -495,8 +585,13 @@ describe('PaymentShareSplitter', () => {
                     // payee1: 150*(1/3) + 50*(1/5) - 0  = 60
                     expect(await splitter.calculatePending(payee1.address), 'payee1').to.equal(60);
                 });
-            });
 
+                it('IPaymentAgent.availablePayments', async () => {
+                    expect(await splitter.availablePayments(admin.address), 'admin').to.equal(0);
+                    expect(await splitter.availablePayments(payee0.address), 'payee0').to.equal(0);
+                    expect(await splitter.availablePayments(payee1.address), 'payee1').to.equal(60);
+                });
+            });
         });
     });
 });

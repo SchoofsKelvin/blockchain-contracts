@@ -15,10 +15,9 @@ import "./PaymentShareSplitterBase.sol";
  */
 contract PaymentShareSplitter is PaymentShareSplitterBase {
 
-	event PayeeAdded(address indexed payee);
+	// New events on top of those provided by IPaymentAgent (emitted in PaymentShareSplitterBase)
+	/** Emitted whenever the shares of a payee changes */
 	event SharesChanged(address indexed payee, uint256 shares);
-	event PaymentReleased(address indexed payee, uint256 amount);
-	event PaymentReceived(address indexed from, uint256 amount);
 
 	address public admin;
 	modifier onlyAdmin {
@@ -49,18 +48,12 @@ contract PaymentShareSplitter is PaymentShareSplitterBase {
 
 	/* Emit internal events publically */
 
-	function _onPayeeAdded(address payee) internal override {
-		emit PayeeAdded(payee);
-	}
+	function _onPayeeAdded(address payee) internal override {} // Already emits PayeeAdded
+	function _onPaymentsReleased(address payee, uint256 amount) internal override {} // Already emits PaymentsReleased
 
 	function _onSharesChanged(address payee, uint256 shares) internal override {
 		emit SharesChanged(payee, shares);
 	}
-
-	function _onPaymentReleased(address payee, uint256 amount) internal override {
-		emit PaymentReleased(payee, amount);
-	}
-
 
 	/* PaymentSharePeriod information */
 
@@ -164,19 +157,6 @@ contract PaymentShareSplitter is PaymentShareSplitterBase {
 	}
 
 	/**
-	 * @dev Wrapper for `releaseSince` that keeps track of the last time the payee had a payment released.
-	 * Regularly releasing payments will therefore be less affected from cost increases from having multiple _paymentPeriods.
-	 * Mind that we will always recheck the latest period, since it might've been modified, e.g. received a payment.
-	 */
-	function release(address payable payee) external returns (uint256 amount) {
-		uint256 previous = _paymentReleasePeriod[payee];
-		// Release the owed amount (which handles payment and event logging)
-		amount = _releasePaymentsSince(payee, _paymentPeriodIdToIndex(previous));
-		// Update this so we know for next time
-		_paymentReleasePeriod[payee] = _currentPaymentSharePeriod().id;
-	}
-
-	/**
 	 * @dev Add a new payee to the contract
 	 * @notice If the payee already has shares, they are increased, not overwritten!
 	 * @return Returns the ID of the new PaymentSharePeriod created due to this modification
@@ -212,13 +192,11 @@ contract PaymentShareSplitter is PaymentShareSplitterBase {
 	/* Receiving payment */
 
 	function addPayment(address from) external payable {
-		_paymentReceived(msg.value);
-		emit PaymentReceived(from, msg.value);
+		_paymentReceived(from, msg.value);
 	}
 
 	function addPayment() public payable {
-		_paymentReceived(msg.value);
-		emit PaymentReceived(msg.sender, msg.value);
+		_paymentReceived(msg.sender, msg.value);
 	}
 
 	/** @dev Log received payments */
