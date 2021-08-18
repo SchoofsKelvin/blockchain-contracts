@@ -5,9 +5,8 @@
   "main": "dist/typechain/index.js",
   "types": "typechain/index.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "yarn hardhat compile; tsc",
     "watch:hh": "yarn hardhat watch compile",
-    "watch:hh2": "nodemon -w contracts -e sol -x yarn hardhat typechain",
     "watch:tsc": "tsc -w"
   },
   "keywords": [],
