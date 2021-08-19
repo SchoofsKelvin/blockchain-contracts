@@ -2,12 +2,12 @@ import * as chai from 'chai';
 import { solidity } from 'ethereum-waffle';
 import { ethers } from 'hardhat';
 import { step } from 'mocha-steps';
-import { Counter, Counter__factory, ProxySingleton, ProxySingleton__factory } from '../../typechain';
+import { Counter, Counter__factory, ProxySingleton__factory } from '../../typechain';
 import { logEvents, pushContract } from '../utils';
 
 const { expect } = chai.use(solidity);
 
-describe('Counter using proxy beacon system', () => {
+describe('Counter using ProxySingleton', () => {
 
     let Counter: Counter__factory;
     let ProxySingleton: ProxySingleton__factory;
@@ -28,7 +28,8 @@ describe('Counter using proxy beacon system', () => {
 
     step('should deploy implementation', async () => {
         counterImpl = await (await Counter.deploy()).deployed();
-        console.log('Counter implementation:', counterImpl.address);
+        const { gasUsed } = await counterImpl.deployTransaction.wait();
+        console.log('Counter implementation:', counterImpl.address, 'which needed', gasUsed.toString(), 'gas to deploy');
         await pushContract({ address: counterImpl.address, name: 'Counter' }, 'Counter-Impl');
     });
 
@@ -36,8 +37,9 @@ describe('Counter using proxy beacon system', () => {
         const CounterInterface = Counter.interface as Counter['interface'];
         const initialize = CounterInterface.encodeFunctionData('initialize', [5]);
         const object = await (await ProxySingleton.deploy(counterImpl.address, initialize)).deployed();
+        const { gasUsed } = await object.deployTransaction.wait();
         counter1 = Counter.attach(object.address);
-        console.log('counter1:', counter1.address);
+        console.log('counter1 singleton:', counter1.address, 'which needed', gasUsed.toString(), 'gas to deploy');
         await pushContract({ address: counter1.address, name: 'Counter' }, 'Counter1');
     });
 
@@ -51,8 +53,9 @@ describe('Counter using proxy beacon system', () => {
         const CounterInterface = Counter.interface as Counter['interface'];
         const initialize = CounterInterface.encodeFunctionData('initialize', [8]);
         const object = await (await ProxySingleton.deploy(counterImpl.address, initialize)).deployed();
+        const { gasUsed } = await object.deployTransaction.wait();
         counter2 = Counter.attach(object.address);
-        console.log('counter2:', counter2.address);
+        console.log('counter2 singleton:', counter2.address, 'which needed', gasUsed.toString(), 'gas to deploy');
         await pushContract({ address: counter2.address, name: 'Counter' }, 'Counter2');
     });
 

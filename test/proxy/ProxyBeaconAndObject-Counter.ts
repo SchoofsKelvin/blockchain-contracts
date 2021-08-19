@@ -64,13 +64,15 @@ describe('Counter using proxy beacon system', () => {
 
     step('should deploy implementation 1', async () => {
         counterImpl = await (await Counter.deploy()).deployed();
-        console.log('Counter implementation:', counterImpl.address);
+        const { gasUsed } = await counterImpl.deployTransaction.wait();
+        console.log('Counter implementation:', counterImpl.address, 'which needed', gasUsed.toString(), 'gas to deploy');
         promises.push(pushContract({ address: counterImpl.address, name: 'Counter' }, 'Counter-Impl'));
     });
 
     step('should deploy the beacon', async () => {
         beacon = await (await ProxyBeacon.deploy(counterImpl.address)).deployed();
-        console.log('Beacon:', beacon.address);
+        const { gasUsed } = await beacon.deployTransaction.wait();
+        console.log('Beacon:', beacon.address, 'which needed', gasUsed.toString(), 'gas to deploy');
         expect(await beacon.implementation()).to.equal(counterImpl.address);
         promises.push(pushContract({ address: beacon.address, name: 'ProxyBeacon' }, 'ProxyBeacon'));
     });
@@ -79,9 +81,10 @@ describe('Counter using proxy beacon system', () => {
         const CounterInterface = Counter.interface as Counter['interface'];
         const initialize = CounterInterface.encodeFunctionData('initialize', [5]);
         const object = await (await ProxyObject.deploy(beacon.address, initialize)).deployed();
+        const { gasUsed } = await object.deployTransaction.wait();
         counter = Counter.attach(object.address);
         counterV2 = CounterV2.attach(object.address);
-        console.log('Counter object:', counter.address);
+        console.log('Counter object:', counter.address, 'which needed', gasUsed.toString(), 'gas to deploy');
         promises.push(pushContract({ address: counter.address, name: 'CounterV2' }, 'Counter-Object'));
     });
 
@@ -95,7 +98,8 @@ describe('Counter using proxy beacon system', () => {
 
     step('should deploy implementation 2', async () => {
         counterV2Impl = await (await CounterV2.deploy()).deployed();
-        console.log('CounterV2 implementation:', counterV2Impl.address);
+        const { gasUsed } = await counterV2Impl.deployTransaction.wait();
+        console.log('CounterV2 implementation:', counterV2Impl.address, 'which needed', gasUsed.toString(), 'gas to deploy');
         promises.push(pushContract({ address: counterV2Impl.address, name: 'CounterV2' }, 'CounterV2-Impl'));
     });
 
