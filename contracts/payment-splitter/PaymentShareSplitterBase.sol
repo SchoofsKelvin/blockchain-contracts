@@ -9,6 +9,7 @@ import "../interfaces/IPaymentAgent.sol";
 struct PaymentSharePeriod {
 	/** Starts at 1 */
 	uint256 id;
+	uint256 createdAt;
 	uint256 totalShares;
 	uint256 totalReceived;
 	address[] payees;
@@ -231,6 +232,7 @@ abstract contract PaymentShareSplitterBase is IERC165, IPaymentAgent {
 		// Create a new period and prepare some fields
 		PaymentSharePeriod storage newPeriod = _paymentPeriods.push();
 		newPeriod.id = period.id + 1;
+		newPeriod.createdAt = block.timestamp;
 		uint256 new_totalPaymentShares = period.totalShares;
 		// Copy the payees and shares
 		for (uint256 i = 0; i < period.payees.length; i++) {
