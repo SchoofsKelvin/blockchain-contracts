@@ -21,6 +21,10 @@ describe('validate interface hashes', () => {
     check('IERC721Metadata', '0x5b5e139f', IERC721Metadata__factory, IERC721__factory);
     check('IERC721TokenReceiver', '0x150b7a02', IERC721TokenReceiver__factory);
 
+    /* IERC721 custom */
+    check('IERC721Sellable', '0x48849482', IERC721Sellable__factory, IERC165__factory, IPaymentAgent__factory);
+    check('IERC721Biddable', '0x8c3f8d59', IERC721Biddable__factory, IERC165__factory, IPaymentAgent__factory);
+
     /* IERC2981 */
     check('IERC2981', '0x2a55205a', IERC2981__factory, IERC165__factory);
 
