@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
 
+import "../eip/IERC165.sol";
 import "../interfaces/IPaymentAgent.sol";
 
 struct PaymentSharePeriod {
@@ -98,7 +99,7 @@ abstract contract PaymentShareSplitterBase is IERC165, IPaymentAgent {
 	/* IERC165 */
 	function supportsInterface(bytes4 interfaceID) override public pure returns (bool) {
 		assert(type(IPaymentAgent).interfaceId == IPaymentAgent_INTERFACE_ID);
-		return interfaceID == IERC165_INTERFACE_ID || interfaceID == IPaymentAgent_INTERFACE_ID;
+		return interfaceID == type(IERC165).interfaceId || interfaceID == IPaymentAgent_INTERFACE_ID;
 	}
 
 	/* PaymentSharePeriod information */

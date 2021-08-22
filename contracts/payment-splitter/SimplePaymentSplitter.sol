@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
 
-import "../interfaces/IERC165.sol";
+import "../eip/IERC165.sol";
 import "../interfaces/IPaymentAgent.sol";
 
 /**
@@ -100,7 +100,7 @@ contract SimplePaymentSplitter is IPaymentAgent {
 	/* IERC165 */
 	function supportsInterface(bytes4 interfaceID) override public pure returns (bool) {
 		assert(type(IPaymentAgent).interfaceId == IPaymentAgent_INTERFACE_ID);
-		return interfaceID == IERC165_INTERFACE_ID || interfaceID == IPaymentAgent_INTERFACE_ID;
+		return interfaceID == type(IERC165).interfaceId || interfaceID == IPaymentAgent_INTERFACE_ID;
 	}
 
 	/* Receiving payment */

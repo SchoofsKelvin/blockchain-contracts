@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import "./IERC165.sol";
+import "../eip/IERC165.sol";
 
 bytes4 constant IPaymentAgent_INTERFACE_ID = 0x79320088;
 
