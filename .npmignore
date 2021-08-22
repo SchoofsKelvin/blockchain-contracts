@@ -1,0 +1,15 @@
+
+# Yarn
+.yarn/
+
+# TypeScript
+*.tsbuildinfo
+#dist/
+
+# Hardhat files
+cache/
+artifacts/
+#typechain/
+
+# Environment file
+.env
