@@ -3,29 +3,10 @@ import { solidity } from 'ethereum-waffle';
 import { ethers } from 'hardhat';
 import { step } from 'mocha-steps';
 import { Counter, CounterV2, CounterV2__factory, Counter__factory, ProxyBeacon, ProxyBeacon__factory, ProxyObject__factory } from '../../typechain';
-import { logEvents } from '../utils';
+import { logEvents, pushContract } from '../utils';
 
 const { expect } = chai.use(solidity);
 const ethernal = undefined as any;
-
-const pushContract = (() => {
-    if (!ethernal) return () => Promise.resolve();
-    let replaceName: string | undefined;
-    const eth = ethernal as any;
-    const gFA: Function = eth.getFormattedArtifact;
-    type ContractInput = Parameters<(typeof ethernal)['push']>[0];
-    eth.getFormattedArtifact = async function (input: ContractInput) {
-        const repName = replaceName;
-        const result = await gFA.call(this, input);
-        if (!result.artifact) throw new Error(`Arfifact not found for ${JSON.stringify(input)}`);
-        if (repName) result.name = repName;
-        return result;
-    }
-    return (input: ContractInput, wantedName: string) => {
-        replaceName = wantedName;
-        return ethernal.push(input);
-    };
-})();
 
 describe('Counter using proxy beacon system', () => {
 
