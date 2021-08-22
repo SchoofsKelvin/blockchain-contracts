@@ -1,9 +1,31 @@
 {
-  "name": "contracts",
+  "name": "blockchain-contracts",
   "version": "0.1.0",
   "private": true,
   "main": "dist/exports.js",
+  "type": "commonjs",
+  "exports": {
+    ".": "./dist/exports.js",
+    "./contracts": "./dist/typechain",
+    "./utils": "./dist/scripts/utils"
+  },
   "types": "dist/exports.d.ts",
+  "typesVersions": {
+    "*": {
+      "dist/exports.d.ts": [
+        "dist/exports.d.ts"
+      ],
+      "contracts": [
+        "dist/typechain/index.d.ts"
+      ],
+      "utils": [
+        "dist/scripts/utils.d.ts"
+      ],
+      "dist/*": [],
+      "scripts/*": [],
+      "test/*": []
+    }
+  },
   "scripts": {
     "build": "yarn hardhat compile; tsc; node .yarn/copy-typechain-d-ts.js",
     "watch:hh": "yarn hardhat watch compile",
@@ -16,12 +38,15 @@
     "email": "schoofs.kelvin@gmail.com",
     "url": "https://github.com/schoofskelvin"
   },
-  "devDependencies": {
+  "dependencies": {
     "@ethersproject/abi": "^5.4.0",
-    "@ethersproject/bignumber": "^5.4.1",
     "@ethersproject/bytes": "^5.4.0",
     "@ethersproject/contracts": "^5.4.1",
     "@ethersproject/providers": "^5.4.3",
+    "ethers": "^5.4.4"
+  },
+  "devDependencies": {
+    "@ethersproject/bignumber": "^5.4.1",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@openzeppelin/contracts": "^4.2.0",
@@ -34,7 +59,6 @@
     "dotenv": "^10.0.0",
     "eth-gas-reporter": "^0.2.22",
     "ethereum-waffle": "^3.4.0",
-    "ethers": "^5.4.4",
     "hardhat": "^2.0.0",
     "hardhat-gas-reporter": "^1.0.4",
     "hardhat-typechain": "^0.3.5",
