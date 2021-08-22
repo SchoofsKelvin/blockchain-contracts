@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
+import "../eip/IERC165.sol";
 import "../eip/IERC721.sol";
 import "./IPaymentAgent.sol";
 
 /** @dev Custom extension of ERC-721 to support buying and selling tokens (using the native currency)
  * ERC-165 identifier for this interface is 0x48849482. */
-interface IERC721Sellable is IERC721, IPaymentAgent {
+interface IERC721Sellable is IERC165, IERC721, IPaymentAgent {
 
 	/** Emitted when token `tokenId` is purchased from `seller` by `buyer` for `price` */
 	event Sale(address indexed seller, address indexed buyer, uint256 indexed tokenId, uint256 price);
