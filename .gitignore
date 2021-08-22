@@ -19,5 +19,8 @@ cache/
 artifacts/
 typechain/
 
+# Special build files
+!.yarn/copy-typechain-d-ts.js
+
 # Environment file
 .env

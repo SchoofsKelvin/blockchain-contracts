@@ -12,6 +12,7 @@
         "./test"
     ],
     "files": [
+        "./exports.ts",
         "./hardhat.config.ts"
     ]
 }

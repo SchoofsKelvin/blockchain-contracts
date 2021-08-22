@@ -2,10 +2,10 @@
   "name": "contracts",
   "version": "0.1.0",
   "private": true,
-  "main": "dist/typechain/index.js",
-  "types": "typechain/index.ts",
+  "main": "dist/exports.js",
+  "types": "dist/exports.d.ts",
   "scripts": {
-    "build": "yarn hardhat compile; tsc",
+    "build": "yarn hardhat compile; tsc; node .yarn/copy-typechain-d-ts.js",
     "watch:hh": "yarn hardhat watch compile",
     "watch:tsc": "tsc -w",
     "prepack": "$npm_execpath run build"
