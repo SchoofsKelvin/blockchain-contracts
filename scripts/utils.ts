@@ -51,6 +51,45 @@ export function getInterfaceHash(holder: ConvertableToInterface, ...extendedInte
     return '0x' + '0'.repeat(8 - hash.length) + hash;
 }
 
+export function connectMixed(address: string, signerOrProvider: Signer | Provider, ...contracts: ConvertableToInterface[]): ethers.Contract {
+    // const fragments = contracts.reduce<Fragment[]>((f, c) => [...f, ...getInterface(c).fragments], []);
+    const fragments = new Map<string, ethers.utils.Fragment>();
+    for (const contract of contracts) {
+        const inst = getInterface(contract);
+        for (const fragment of inst.fragments) {
+            fragments.set(fragment.format('minimal'), fragment);
+        }
+    }
+    return new ethers.Contract(address, [...fragments.values()], signerOrProvider);
+}
+
+// https://stackoverflow.com/a/50375286/14274597
+export type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends ((k: infer I) => void) ? I : never;
+
+export type ContractTypeFromConnectables<CS extends Connectable<any>[]> = CS extends Connectable<infer C>[] ? UnionToIntersection<C> : never;
+export function connectMixedTC<CS extends Connectable<any>[]>(address: string, signerOrProvider: Signer | Provider, ...contracts: CS): ContractTypeFromConnectables<CS> {
+    return connectMixed(address, signerOrProvider, ...contracts) as any;
+}
+
+export type StrictContract<C extends Contract> = { [key in keyof C as '' extends key ? never : key]: C[key] };
+export const strictContract = <C extends Contract>(contract: C): StrictContract<C> => contract as any;
+
+export function createUseDiamond<CSBase extends Connectable<any>[]>(...base: CSBase) {
+    let diamond: any;
+    function setDiamond(dia: string | Contract, signerOrProvider: Signer | Provider, ...extra: Connectable[]) {
+        diamond = connectMixedTC(typeof dia === 'string' ? dia : dia.address, signerOrProvider, ...base, ...extra);
+        if (dia instanceof ethers.Contract) diamond.deployTransaction = dia.deployTransaction;
+    }
+    const proxy: StrictContract<ContractTypeFromConnectables<CSBase>> = new Proxy({}, {
+        get(_, prop) { return diamond?.[prop]; },
+        set(_, prop, value) { diamond[prop] = value; return true; },
+        has(_, prop) { return prop in diamond; },
+        getPrototypeOf(_) { return Object.getPrototypeOf(diamond); },
+        ownKeys(_) { return Object.getOwnPropertyNames(diamond); },
+    }) as any;
+    return [proxy, setDiamond] as const;
+}
+
 export type SignerMirage<C extends Contract> = (signer: ethers.Signer) => C;
 export function createSignerMirrage<C extends Contract>(contract: C): SignerMirage<C> {
     const cache = new Map<ethers.Signer, C>();

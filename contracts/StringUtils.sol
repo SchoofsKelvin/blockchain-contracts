@@ -15,6 +15,10 @@ library StringUtils {
         return toHexString(abi.encodePacked(account));
     }
 
+    function toHexString4(bytes4 value) internal pure returns(string memory) {
+        return toHexString(abi.encodePacked(value));
+    }
+
     function toHexString(bytes32 value) internal pure returns(string memory) {
         return toHexString(abi.encodePacked(value));
     }
