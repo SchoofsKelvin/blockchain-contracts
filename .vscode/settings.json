@@ -25,5 +25,9 @@
   "mochaExplorer.exit": true,
   "mochaExplorer.autoload": "onStart",
   "mochaExplorer.timeout": 120000,
-  "mochaExplorer.parallel": true
+  "mochaExplorer.parallel": true,
+  "solidity.linter": "solium",
+  "solidity.soliumRules": {
+    "security/no-assign-params": 0
+  }
 }

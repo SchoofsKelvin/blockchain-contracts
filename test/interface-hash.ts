@@ -1,14 +1,14 @@
 
 import * as chai from 'chai';
 import { solidity } from 'ethereum-waffle';
-import { getInterfaceHash, InterfaceHashable } from "../scripts/utils";
+import { getInterfaceHash, ConvertableToInterface } from "../scripts/utils";
 import { IERC165__factory, IERC2981__factory, IERC721Biddable__factory, IERC721Enumerable__factory, IERC721Metadata__factory, IERC721Sellable__factory, IERC721TokenReceiver__factory, IERC721__factory, IPaymentAgent__factory } from "../typechain";
 
 const { expect } = chai.use(solidity);
 
 describe('validate interface hashes', () => {
 
-    function check(name: string, expectedHash: string, inter: InterfaceHashable, ...extendedInterfaces: InterfaceHashable[]) {
+    function check(name: string, expectedHash: string, inter: ConvertableToInterface, ...extendedInterfaces: ConvertableToInterface[]) {
         it(name, () => expect(getInterfaceHash(inter, ...extendedInterfaces)).to.hexEqual(expectedHash));
     }
 

@@ -7,7 +7,8 @@
   "exports": {
     ".": "./dist/exports.js",
     "./contracts": "./dist/typechain",
-    "./utils": "./dist/scripts/utils"
+    "./utils": "./dist/scripts/utils",
+    ".pnp.cjs": "./.pnp.cjs"
   },
   "types": "dist/exports.d.ts",
   "typesVersions": {
