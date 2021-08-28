@@ -23,7 +23,7 @@ describe('validate interface hashes', () => {
 
     /* IERC721 custom */
     check('IERC721Sellable', '0x48849482', IERC721Sellable__factory, IERC165__factory, IPaymentAgent__factory);
-    check('IERC721Biddable', '0x8c3f8d59', IERC721Biddable__factory, IERC165__factory, IPaymentAgent__factory);
+    check('IERC721Biddable', '0x44174116', IERC721Biddable__factory, IERC165__factory, IPaymentAgent__factory);
 
     /* IERC2981 */
     check('IERC2981', '0x2a55205a', IERC2981__factory, IERC165__factory);

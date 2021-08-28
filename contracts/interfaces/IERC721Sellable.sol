@@ -18,12 +18,6 @@ interface IERC721Sellable is IERC165, IERC721, IPaymentAgent {
 	 */
 	event PriceUpdate(address indexed operator, uint256 indexed tokenId, uint256 oldPrice, uint256 newPrice);
 
-	/**
-	 * Emitted when `operator` changes whether token `tokenId` is for sale or not.
-	 * The `operator` might not be the actual owner, but an approved operator instead.
-	 */
-	event ForSaleUpdate(address indexed operator, uint256 indexed tokenId, bool forSale);
-
 	/** Returns whether the given token is for sale. Reverts for nonexistent token */
 	function forSale(uint256 tokenId) external view returns (bool);
 

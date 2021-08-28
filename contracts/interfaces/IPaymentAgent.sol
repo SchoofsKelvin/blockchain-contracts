@@ -35,7 +35,9 @@ interface IPaymentAgent is IERC165 {
 	event PaymentRegistered(address indexed payer, address indexed payee, uint256 amount);
 
 	/**
-	 * **OPTIONAL**: Emitted whenever a payment is made to this contract
+	 * **OPTIONAL**: Emitted whenever a payment is made to this contract.
+	 * Mostly meant for payment splitters (e.g. using shares), where emitting `PaymentRegistered` for
+	 * every shareholder would get quite expensive. This is more of a "I got paid!" shout by the contract.
 	 * @param payer The address that paid the payment. Could be the zero address for unknown/mixed origin.
 	 * @param amount The amount that was paid
 	 */
@@ -51,9 +53,9 @@ interface IPaymentAgent is IERC165 {
 
 	/**
 	 * Transfers (part of) the funds this contract owes the sender to the sender.
-	 * @return ammount The payed out amount (or 0 if nothing got paid out)
+	 * @return amount The payed out amount (or 0 if nothing got paid out)
 	 */
-	function withdrawPayments() external returns (uint256 ammount);
+	function withdrawPayments() external returns (uint256 amount);
 	// ^ bytes4(keccak256('withdrawPayments()')) = 0x6103d70b
 
 	/**

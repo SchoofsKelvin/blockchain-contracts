@@ -4,19 +4,14 @@ pragma solidity ^0.8.0;
 import "../eip/IERC165.sol";
 import "../eip/IERC721.sol";
 import "./IPaymentAgent.sol";
+import "./IERC721Sellable.sol";
 
 /** @dev Custom extension of ERC-721 to support bidding on tokens (using the native currency).
- * Meant to be combined with the custom extension ERC721Sellable, even reusing the same `Sale` event.
+ * Extension to ERC721Sellable. Reuses the `Sale` event.
  * ERC-165 identifier for this interface is 0x8c3f8d59. */
-interface IERC721Biddable is IERC165, IERC721, IPaymentAgent {
+interface IERC721Biddable is IERC165, IERC721, IPaymentAgent, IERC721Sellable {
 
-	/**
-	 * Emitted when a token is sold, either by the seller accepting a bid, or other causes, i.e. from ERC721Sellable.
-	 * In all cases, emitting this event should also cancel any bid on this token.
-	 */
-	event Sale(address indexed seller, address indexed buyer, uint256 indexed tokenId, uint256 price);
-
-	/** Emitted when a bid is placed */
+	/** Emitted when a bid is placed. A price of 0 means the bid is cancelled instead */
 	event PlaceBid(address indexed bidder, uint256 indexed tokenId, uint256 price);
 
 	/** Place a bid on a token. Reverts if the token doesn't exist or already has a bid of the same or a higher price */
@@ -29,8 +24,11 @@ interface IERC721Biddable is IERC165, IERC721, IPaymentAgent {
 	function cancelBid(uint256 tokenId) external;
 
 	/**
-	 * Accepts the current highest bid with the given price.
+	 * Accepts the current highest bid with the given price, emitting a `Sale` event.
 	 * The price will be checked, to prevent sudden underpricing or even unexpected overpricing (in case buyer validation is desired).
+	 * An address approved for a token should also be able to accept bids for that token.
+	 * The funds gained from accepting the bid will be owed to the token owner, not the accepter.
+	 * Invokes `withdrawPayments()` (similar to `cancelBid()`) if the acceptor is the token owner.
 	 */
 	function acceptBid(uint256 tokenId, uint256 price) external;
 	
