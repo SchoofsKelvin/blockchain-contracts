@@ -1,12 +1,11 @@
 import type { Contract, ContractFactory, Event } from '@ethersproject/contracts';
 import type { Provider } from '@ethersproject/providers';
-import type { Signer } from 'ethers';
 import * as ethers from 'ethers';
 
 export interface Connectable<C extends Contract = Contract> { connect(address: string, _?: any): C }
 const isConnectable = (obj: any): obj is Connectable => obj && 'connect' in obj;
 export type ConvertableToInterface = ContractFactory | Contract | Connectable;
-function getInterface(holder: ConvertableToInterface): ethers.utils.Interface {
+export function getInterface(holder: ConvertableToInterface): ethers.utils.Interface {
     if (isConnectable(holder)) holder = holder.connect(ethers.constants.AddressZero);
     if (!(holder as Contract)?.interface) throw new Error('Not a ConvertableToInterface');
     return (holder as Contract).interface;
@@ -51,7 +50,7 @@ export function getInterfaceHash(holder: ConvertableToInterface, ...extendedInte
     return '0x' + '0'.repeat(8 - hash.length) + hash;
 }
 
-export function connectMixed(address: string, signerOrProvider: Signer | Provider, ...contracts: ConvertableToInterface[]): ethers.Contract {
+export function connectMixed(address: string, signerOrProvider: ethers.Signer | Provider, ...contracts: ConvertableToInterface[]): ethers.Contract {
     // const fragments = contracts.reduce<Fragment[]>((f, c) => [...f, ...getInterface(c).fragments], []);
     const fragments = new Map<string, ethers.utils.Fragment>();
     for (const contract of contracts) {
@@ -67,7 +66,7 @@ export function connectMixed(address: string, signerOrProvider: Signer | Provide
 export type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends ((k: infer I) => void) ? I : never;
 
 export type ContractTypeFromConnectables<CS extends Connectable<any>[]> = CS extends Connectable<infer C>[] ? UnionToIntersection<C> : never;
-export function connectMixedTC<CS extends Connectable<any>[]>(address: string, signerOrProvider: Signer | Provider, ...contracts: CS): ContractTypeFromConnectables<CS> {
+export function connectMixedTC<CS extends Connectable<any>[]>(address: string, signerOrProvider: ethers.Signer | Provider, ...contracts: CS): ContractTypeFromConnectables<CS> {
     return connectMixed(address, signerOrProvider, ...contracts) as any;
 }
 
@@ -76,23 +75,23 @@ export const strictContract = <C extends Contract>(contract: C): StrictContract<
 
 export function createUseDiamond<CSBase extends Connectable<any>[]>(...base: CSBase) {
     let diamond: any;
-    function setDiamond(dia: string | Contract, signerOrProvider: Signer | Provider, ...extra: Connectable[]) {
+    function setDiamond(dia: string | Contract, signerOrProvider: ethers.Signer | Provider, ...extra: Connectable[]) {
         diamond = connectMixedTC(typeof dia === 'string' ? dia : dia.address, signerOrProvider, ...base, ...extra);
         if (dia instanceof ethers.Contract) diamond.deployTransaction = dia.deployTransaction;
     }
     const proxy: StrictContract<ContractTypeFromConnectables<CSBase>> = new Proxy({}, {
         get(_, prop) { return diamond?.[prop]; },
         set(_, prop, value) { diamond[prop] = value; return true; },
-        has(_, prop) { return prop in diamond; },
+        has(_, prop) { return diamond && prop in diamond; },
         getPrototypeOf(_) { return Object.getPrototypeOf(diamond); },
         ownKeys(_) { return Object.getOwnPropertyNames(diamond); },
     }) as any;
     return [proxy, setDiamond] as const;
 }
 
-export type SignerMirage<C extends Contract> = (signer: ethers.Signer) => C;
+export type SignerMirage<C extends Contract> = (signer: ethers.ethers.Signer) => C;
 export function createSignerMirrage<C extends Contract>(contract: C): SignerMirage<C> {
-    const cache = new Map<ethers.Signer, C>();
+    const cache = new Map<ethers.ethers.Signer, C>();
     return signer => {
         let view = cache.get(signer);
         if (view) return view;
@@ -127,11 +126,13 @@ export function formatParam(value: any, type?: ethers.utils.ParamType | string):
     return `${type.type}${type.indexed ? ' indexed' : ''} ${type.name}: ${formatParamValue(value, type)}`;
 }
 
+const EMPTY_INTERFACE = new ethers.utils.Interface([]);
 export function formatEvent(event: Event, fragment?: ethers.utils.EventFragment): string {
-    const { args, event: name, decodeError } = event;
-    if (decodeError) return `${name}(ERR: ${decodeError})`;
-    if (!args) return `${name}()`;
-    const keys = Object.keys(args).slice(args.length);
-    const zipped = keys.map((k, i) => formatParam(args[i], fragment?.inputs[i] || k));
-    return `${event.event}(${zipped.join(', ')}) [block#${event.blockNumber}|trans#${event.transactionIndex}]`;
+    const name = event.event || fragment?.name;
+    if (!name) return `[unknown event](${event.topics.join(',')}|${event.data || '0x'})`;
+    if (event.decodeError) return `${name}(ERR: ${event.decodeError})`;
+    if (!fragment) return `${name}()`;
+    const result = EMPTY_INTERFACE.decodeEventLog(fragment, event.data, event.topics);
+    const params = fragment.inputs.map((p, i) => formatParam(result[i], p));
+    return `${name}(${params.join(', ')}) [block#${event.blockNumber}|trans#${event.transactionIndex}]`;
 }

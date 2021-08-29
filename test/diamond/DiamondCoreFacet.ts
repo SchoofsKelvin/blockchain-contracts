@@ -5,11 +5,10 @@ import * as chai from 'chai';
 import { solidity } from 'ethereum-waffle';
 import { ContractTransaction } from 'ethers';
 import { ethers } from 'hardhat';
-import type { Suite } from 'mocha';
 import { step } from 'mocha-steps';
-import { Connectable, ContractTypeFromConnectables, createUseDiamond, getInterfaceHash, StrictContract } from '../../scripts/utils';
-import { DiamondCoreFacet, DiamondCoreFacet__factory, DiamondTestFacet, DiamondTestFacet__factory, Diamond__factory, IDiamondCut__factory, IDiamondLoupe__factory, IERC165__factory } from '../../typechain';
-import { before, describeStep, expectFacetsToMatch, logEvents } from '../utils';
+import { createUseDiamond, getInterfaceHash } from '../../scripts/utils';
+import { DiamondCoreFacet__factory, DiamondTestFacet, DiamondTestFacet__factory, Diamond__factory, IDiamondCut__factory, IDiamondLoupe__factory, IERC165__factory } from '../../typechain';
+import { before, describeStep, expectFacetsToMatch, logEvents, stepAddFacet, stepRemoveFacet, stepReplaceFacet, useDescribeDiamondWithCore } from '../utils';
 
 const { expect } = chai.use(solidity);
 
@@ -65,19 +64,13 @@ describe('DiamondCoreFacet', () => {
         console.log('Signer:', admin.address);
     });
 
-    let coreFacet: DiamondCoreFacet;
+    const [describeDiamond, , , getCoreFacet] = useDescribeDiamondWithCore(() => admin, []);
 
     let testFacet1: DiamondTestFacet;
     let testFacet2: DiamondTestFacet;
 
-    before('deploy core facet', async () => {
-        coreFacet = await diamondCoreFactory.deploy();
-        logEvents.setup(() => coreFacet, 'DiamondCoreFacet');
-        console.log('DiamondCoreFacet deployed at', coreFacet.address);
-    });
-
     it('coreFacet.selectors()', async () => {
-        expect(await coreFacet.selectors()).to.have.members(CORE_SELECTORS);
+        expect(await getCoreFacet().selectors()).to.have.members(CORE_SELECTORS);
     });
 
     before('deploy test facets', async () => {
@@ -93,28 +86,6 @@ describe('DiamondCoreFacet', () => {
         expect(await testFacet1.deployedBlock()).to.not.equal(await testFacet2.deployedBlock());
     });
 
-    const BASE_FACTORIES = [Diamond__factory, IDiamondCut__factory, IDiamondLoupe__factory, IERC165__factory];
-    const [diamondProxy, setDiamond] = createUseDiamond(...BASE_FACTORIES);
-    logEvents.setup(diamondProxy, 'Diamond');
-
-    function describeDiamond<CS extends Connectable<any>[]>(name: string,
-        cb: (this: Suite, dia: StrictContract<ContractTypeFromConnectables<[...CS, ...typeof BASE_FACTORIES]>>) => void, ...contracts: CS) {
-        describeDiamond.suite(name, function () {
-            step('deploy diamond([Core],SELECTORS.initialize)', async function () {
-                setDiamond(await diamondFactory.deploy([{
-                    facet: coreFacet.address,
-                    initializer: SEL.initialize,
-                    selectors: CORE_SELECTORS,
-                }]), admin, ...contracts);
-            });
-            cb.call(this, diamondProxy as any);
-        });
-        describeDiamond.suite = describe;
-    }
-    describeDiamond.suite = describe as Mocha.PendingSuiteFunction;
-    const w = (f: any): typeof describeDiamond => ((...a: any) => { const o = describeDiamond.suite; describeDiamond.suite = f; (describeDiamond as any)(...a); describeDiamond.suite = o; }) as any;
-    describeDiamond.skip = w(describe.skip); describeDiamond.only = w(describe.only); describeDiamond.step = w(describeStep);
-
     describe('invalid empty diamond', () => {
         it('deploy diamond([])', async () => {
             expect(diamondFactory.deploy([])).to.be.reverted;
@@ -122,14 +93,14 @@ describe('DiamondCoreFacet', () => {
     });
 
     describe('minimal empty diamond', () => {
-        const [diamond, setDiamond] = createUseDiamond(...BASE_FACTORIES);
+        const [diamond, setDiamond] = createUseDiamond(IERC165__factory, IDiamondCut__factory, IDiamondLoupe__factory);
         logEvents.setup(diamond, 'Diamond');
 
         step('deploy diamond([Core:[supportsInterface,facetAddress]],SELECTORS.initialize)', async () => {
             setDiamond(await diamondFactory.deploy([{
-                facet: coreFacet.address,
+                facet: getCoreFacet().address,
                 initializer: SEL.initialize,
-                selectors: [SEL.supportsInterface, SEL.facetAddress] // supportsInterface(), facetAddress()
+                selectors: [SEL.supportsInterface, SEL.facetAddress],
             }]), admin);
         });
 
@@ -141,24 +112,12 @@ describe('DiamondCoreFacet', () => {
             expect(dcLogs, '#dcLogs').to.have.lengthOf(1);
             const event = diamond.interface.parseLog(dcLogs[0]);
             expect(event.args, 'event.args').to.have.deep.members([
-                [[coreFacet.address, 0, [SEL.supportsInterface, SEL.facetAddress]]], ethers.constants.AddressZero, "0x"
+                [[getCoreFacet().address, 0, [SEL.supportsInterface, SEL.facetAddress]]], ethers.constants.AddressZero, "0x"
             ]);
         });
     });
 
     describeDiamond('Diamond with DiamondCoreFacet', diamond => {
-
-        it('construction events', async () => {
-            await expect(diamond.deployTransaction).to.emit(diamond, 'DiamondCut');
-            const logs = (await diamond.deployTransaction.wait()).logs;
-            const eventHash = diamond.interface.getEventTopic('DiamondCut');
-            const dcLogs = logs.filter(log => log.topics[0] === eventHash);
-            expect(dcLogs, '#dcLogs').to.have.lengthOf(1);
-            const event = diamond.interface.parseLog(dcLogs[0]);
-            expect(event.args, 'event.args').to.have.deep.members([
-                [[coreFacet.address, 0, CORE_SELECTORS]], ethers.constants.AddressZero, "0x"
-            ]);
-        });
 
         describe('supportsInterface', () => {
             it('IERC165', async () => {
@@ -188,31 +147,31 @@ describe('DiamondCoreFacet', () => {
 
         describe('IDiamondLoupe', () => {
             it('facets', async () => {
-                expectFacetsToMatch(await diamond.facets(), [[coreFacet.address, CORE_SELECTORS]]);
+                expectFacetsToMatch(await diamond.facets(), [[getCoreFacet().address, CORE_SELECTORS]]);
             });
 
             it('facetFunctionSelectors(CoreFacet)', async () => {
-                expect(await diamond.facetFunctionSelectors(coreFacet.address)).to.have.members(CORE_SELECTORS);
+                expect(await diamond.facetFunctionSelectors(getCoreFacet().address)).to.have.members(CORE_SELECTORS);
             });
             it('facetFunctionSelectors(Random)', async () => {
                 expect(await diamond.facetFunctionSelectors(admin.address)).to.have.members([]);
             });
 
             it('facetAddresses', async () => {
-                expect(await diamond.facetAddresses()).to.have.members([coreFacet.address]);
+                expect(await diamond.facetAddresses()).to.have.members([getCoreFacet().address]);
             });
 
             it('facetAddress(facets)', async () => {
                 const sig = Interface.getSighash(diamond.interface.getFunction('facets'));
-                expect(await diamond.facetAddress(sig)).to.equal(coreFacet.address);
+                expect(await diamond.facetAddress(sig)).to.equal(getCoreFacet().address);
             });
             it('facetAddress(supportsInterface)', async () => {
                 const sig = Interface.getSighash(diamond.interface.getFunction('supportsInterface'));
-                expect(await diamond.facetAddress(sig)).to.equal(coreFacet.address);
+                expect(await diamond.facetAddress(sig)).to.equal(getCoreFacet().address);
             });
             it('facetAddress(diamondCut)', async () => {
                 const sig = Interface.getSighash(diamond.interface.getFunction('diamondCut'));
-                expect(await diamond.facetAddress(sig)).to.equal(coreFacet.address);
+                expect(await diamond.facetAddress(sig)).to.equal(getCoreFacet().address);
             });
             it('facetAddress(random)', async () => {
                 expect(await diamond.facetAddress('0x12345678')).to.equal(ethers.constants.AddressZero);
@@ -221,27 +180,28 @@ describe('DiamondCoreFacet', () => {
     });
 
     describe('Diamond with DiamondCoreFacet - empty diamondCut', () => {
-        const [diamond, setDiamond] = createUseDiamond(...BASE_FACTORIES, DiamondTestFacet__factory);
+        const [diamond, setDiamond] = createUseDiamond(IERC165__factory, IDiamondCut__factory, IDiamondLoupe__factory, DiamondTestFacet__factory);
         logEvents.setup(diamond, 'Diamond');
 
         step('deploy diamond([Core,Test:getValue],SELECTORS.initialize)', async () => {
             setDiamond(await diamondFactory.deploy([{
-                facet: coreFacet.address,
+                facet: getCoreFacet().address,
                 initializer: SEL.initialize,
                 selectors: CORE_SELECTORS,
             }, {
                 facet: testFacet1.address,
                 initializer: "0x",
-                selectors: [SEL.getValue], // getValue()
+                selectors: [SEL.getValue],
             }]), admin);
         });
 
-        it('diamondCut should call passed calldata', async () => {
-            const uniqueValue = Date.now();
-            const key = ethers.utils.keccak256(Buffer.from("setValue key for uniqueValue"));
+        const key = ethers.utils.keccak256(Buffer.from("setValue key for uniqueValue"));
+        const uniqueValue = Date.now();
+        const getTrans = stepAddFacet(diamond, () => testFacet1, [], ['setValue', key, uniqueValue]);
+
+        it('should have called passed calldata', async () => {
             const cd = (await testFacet1.populateTransaction.setValue(key, uniqueValue)).data!;
-            const trans = await diamond.diamondCut([], testFacet1.address, cd);
-            await expect(trans).to.emit(diamond, 'DiamondCut').withArgs([], testFacet1.address, cd);
+            await expect(getTrans()).to.emit(diamond, 'DiamondCut').withArgs([], testFacet1.address, cd);
             expect(await diamond.getValue(key), 'getValue').to.equal(uniqueValue);
         });
 
@@ -251,7 +211,7 @@ describe('DiamondCoreFacet', () => {
 
         it('facets should be unchanged', async () => {
             expectFacetsToMatch(await diamond.facets(), [
-                [coreFacet.address, CORE_SELECTORS],
+                [getCoreFacet().address, CORE_SELECTORS],
                 [testFacet1.address, [SEL.getValue]],
             ]);
         });
@@ -259,25 +219,8 @@ describe('DiamondCoreFacet', () => {
 
     describeDiamond('Diamond with DiamondCoreFacet - Add/Remove testFacet1 for selector 0x00000000', diamond => {
         const data = '0x00000000' + '00112233445566778899aabbccddeeff';
-        let cutTransaction: ContractTransaction;
-        step('add facet1', async () => {
-            cutTransaction = await diamond.diamondCut([{
-                facetAddress: testFacet1.address,
-                action: 0, functionSelectors: [SEL.getFallbackValues, '0x00000000'],
-            }], ethers.constants.AddressZero, "0x");
-        });
 
-        it('should emit the correct add event', async () => {
-            await expect(cutTransaction).to.emit(diamond, 'DiamondCut');
-            const logs = (await cutTransaction.wait()).logs;
-            const eventHash = diamond.interface.getEventTopic('DiamondCut');
-            const dcLogs = logs.filter(log => log.topics[0] === eventHash);
-            expect(dcLogs, '#dcLogs').to.have.lengthOf(1);
-            const event = diamond.interface.parseLog(dcLogs[0]);
-            expect(event.args, 'event.args').to.deep.equal([[
-                [testFacet1.address, 0, [SEL.getFallbackValues, '0x00000000']],
-            ], ethers.constants.AddressZero, "0x"]);
-        });
+        stepAddFacet(diamond, () => testFacet1, [SEL.getFallbackValues, '0x00000000']);
 
         it('should return correct facetAddress for 0x00000000', async () => {
             expect(await diamond.facetAddress("0x00000000")).to.equal(testFacet1.address);
@@ -292,27 +235,10 @@ describe('DiamondCoreFacet', () => {
             expect(fallbackData).to.equal(data);
         });
 
-        step('remove facet1:0x00000000', async () => {
-            cutTransaction = await diamond.diamondCut([{
-                facetAddress: ethers.constants.AddressZero,
-                action: 2, functionSelectors: ['0x00000000'],
-            }], ethers.constants.AddressZero, "0x");
-        });
+        stepRemoveFacet(diamond, ['0x00000000']);
 
         it('should no longer return a facetAddress for 0x00000000', async () => {
             expect(await diamond.facetAddress("0x00000000")).to.equal(ethers.constants.AddressZero);
-        });
-
-        it('should emit the correct remove event', async () => {
-            await expect(cutTransaction).to.emit(diamond, 'DiamondCut');
-            const logs = (await cutTransaction.wait()).logs;
-            const eventHash = diamond.interface.getEventTopic('DiamondCut');
-            const dcLogs = logs.filter(log => log.topics[0] === eventHash);
-            expect(dcLogs, '#dcLogs').to.have.lengthOf(1);
-            const event = diamond.interface.parseLog(dcLogs[0]);
-            expect(event.args, 'event.args').to.deep.equal([[
-                [ethers.constants.AddressZero, 2, ['0x00000000']],
-            ], ethers.constants.AddressZero, "0x"]);
         });
 
 
@@ -321,7 +247,7 @@ describe('DiamondCoreFacet', () => {
         });
     }, DiamondTestFacet__factory);
 
-    describeDiamond('Diamond with DiamondCoreFacet - Add testFacet1', diamond => {
+    describeDiamond('Diamond with DiamondCoreFacet - Add testFacet1 twice at once', diamond => {
 
         let cutTransaction: ContractTransaction;
         step('add both facets', async () => {
@@ -332,7 +258,7 @@ describe('DiamondCoreFacet', () => {
             }, {
                 facetAddress: testFacet1.address,
                 action: 0,
-                functionSelectors: [SEL.setValue, SEL.getValue, SEL.deployedBlock], // setValue(), getValue(), deployedBlock()
+                functionSelectors: [SEL.setValue, SEL.getValue, SEL.deployedBlock],
             }], testFacet1.address, SEL.initialize);
         });
 
@@ -358,7 +284,7 @@ describe('DiamondCoreFacet', () => {
             await diamond.setValue(ethers.utils.keccak256(Buffer.from("b")), 9);
             expect(await diamond.b(), 'b()').to.deep.equal([[9], [2, 3, 4]]);
         });
-        
+
         it('should call doNothing() just fine', async () => {
             await diamond.doNothing();
         });
@@ -378,13 +304,13 @@ describe('DiamondCoreFacet', () => {
         describe('IDiamondLoupe', () => {
             it('facets', async () => {
                 expectFacetsToMatch(await diamond.facets(), [
-                    [coreFacet.address, CORE_SELECTORS],
+                    [getCoreFacet().address, CORE_SELECTORS],
                     [testFacet1.address, [SEL.a, SEL.b, SEL.doNothing, SEL.setValue, SEL.getValue, SEL.deployedBlock]],
                 ]);
             });
 
             it('facetFunctionSelectors(CoreFacet)', async () => {
-                expect(await diamond.facetFunctionSelectors(coreFacet.address)).to.have.members(CORE_SELECTORS);
+                expect(await diamond.facetFunctionSelectors(getCoreFacet().address)).to.have.members(CORE_SELECTORS);
             });
             it('facetFunctionSelectors(TestFacet1)', async () => {
                 expect(await diamond.facetFunctionSelectors(testFacet1.address)).to.have.members([
@@ -396,12 +322,12 @@ describe('DiamondCoreFacet', () => {
             });
 
             it('facetAddresses', async () => {
-                expect(await diamond.facetAddresses()).to.have.members([coreFacet.address, testFacet1.address]);
+                expect(await diamond.facetAddresses()).to.have.members([getCoreFacet().address, testFacet1.address]);
             });
 
             it('facetAddress(facets)', async () => {
                 const sig = Interface.getSighash(diamond.interface.getFunction('facets'));
-                expect(await diamond.facetAddress(sig)).to.equal(coreFacet.address);
+                expect(await diamond.facetAddress(sig)).to.equal(getCoreFacet().address);
             });
             it('facetAddress(a)', async () => {
                 const sig = Interface.getSighash(diamond.interface.getFunction('a'));
@@ -467,14 +393,14 @@ describe('DiamondCoreFacet', () => {
         describe('IDiamondLoupe', () => {
             it('facets', async () => {
                 expectFacetsToMatch(await diamond.facets(), [
-                    [coreFacet.address, CORE_SELECTORS],
+                    [getCoreFacet().address, CORE_SELECTORS],
                     [testFacet1.address, [SEL.a, SEL.b]],
                     [testFacet2.address, [SEL.setValue, SEL.getValue, SEL.deployedBlock]],
                 ]);
             });
 
             it('facetFunctionSelectors(CoreFacet)', async () => {
-                expect(await diamond.facetFunctionSelectors(coreFacet.address)).to.have.members(CORE_SELECTORS);
+                expect(await diamond.facetFunctionSelectors(getCoreFacet().address)).to.have.members(CORE_SELECTORS);
             });
             it('facetFunctionSelectors(TestFacet1)', async () => {
                 expect(await diamond.facetFunctionSelectors(testFacet1.address)).to.have.members([SEL.a, SEL.b]);
@@ -487,12 +413,12 @@ describe('DiamondCoreFacet', () => {
             });
 
             it('facetAddresses', async () => {
-                expect(await diamond.facetAddresses()).to.have.members([coreFacet.address, testFacet1.address, testFacet2.address]);
+                expect(await diamond.facetAddresses()).to.have.members([getCoreFacet().address, testFacet1.address, testFacet2.address]);
             });
 
             it('facetAddress(facets)', async () => {
                 const sig = Interface.getSighash(diamond.interface.getFunction('facets'));
-                expect(await diamond.facetAddress(sig)).to.equal(coreFacet.address);
+                expect(await diamond.facetAddress(sig)).to.equal(getCoreFacet().address);
             });
             it('facetAddress(a)', async () => {
                 const sig = Interface.getSighash(diamond.interface.getFunction('a'));
@@ -517,25 +443,7 @@ describe('DiamondCoreFacet', () => {
             const remainingSelectors = initialSelectors.filter(sel => !replacedSelectors.includes(sel));
             describeDiamond.step(name, diamond => {
                 describeStep('perform initial cut', () => {
-                    let cutTransaction: ContractTransaction;
-                    step('add facets1 in two steps', async () => {
-                        cutTransaction = await diamond.diamondCut([{
-                            facetAddress: testFacet1.address,
-                            action: 0,
-                            functionSelectors: initialSelectors,
-                        }], testFacet1.address, SEL.initialize);
-                    });
-
-                    it('should emit the correct event', async () => {
-                        await expect(cutTransaction).to.emit(diamond, 'DiamondCut');
-                        const logs = (await cutTransaction.wait()).logs;
-                        const eventHash = diamond.interface.getEventTopic('DiamondCut');
-                        const dcLogs = logs.filter(log => log.topics[0] === eventHash);
-                        expect(dcLogs, '#dcLogs').to.have.lengthOf(1);
-                        const event = diamond.interface.parseLog(dcLogs[0]);
-                        expect(event.args, 'event.args').to.have.deep.members([[
-                            [testFacet1.address, 0, initialSelectors]], testFacet1.address, SEL.initialize]);
-                    });
+                    stepAddFacet(diamond, () => testFacet1, initialSelectors, 'initialize');
 
                     it('should call doNothing() just fine', async () => {
                         await diamond.doNothing();
@@ -563,7 +471,7 @@ describe('DiamondCoreFacet', () => {
                         it('facets', async () => {
                             try {
                                 expectFacetsToMatch(await diamond.facets(), [
-                                    [coreFacet.address, CORE_SELECTORS],
+                                    [getCoreFacet().address, CORE_SELECTORS],
                                     [testFacet1.address, initialSelectors],
                                 ]);
                             } catch (e) {
@@ -575,25 +483,7 @@ describe('DiamondCoreFacet', () => {
                 });
 
                 describeStep('perform replace', () => {
-                    let cutTransaction: ContractTransaction;
-                    step('replace facet1:deployedBlock with facet2', async () => {
-                        cutTransaction = await diamond.diamondCut([{
-                            facetAddress: testFacet2.address,
-                            action: 1,
-                            functionSelectors: replacedSelectors,
-                        }], ethers.constants.AddressZero, "0x");
-                    });
-
-                    it('should emit the correct event', async () => {
-                        await expect(cutTransaction).to.emit(diamond, 'DiamondCut');
-                        const logs = (await cutTransaction.wait()).logs;
-                        const eventHash = diamond.interface.getEventTopic('DiamondCut');
-                        const dcLogs = logs.filter(log => log.topics[0] === eventHash);
-                        expect(dcLogs, '#dcLogs').to.have.lengthOf(1);
-                        const event = diamond.interface.parseLog(dcLogs[0]);
-                        expect(event.args, 'event.args').to.have.deep.members([[
-                            [testFacet2.address, 1, replacedSelectors]], ethers.constants.AddressZero, "0x"]);
-                    });
+                    stepReplaceFacet(diamond, () => testFacet2, replacedSelectors);
                 });
 
                 describeStep('after replace', () => {
@@ -616,7 +506,7 @@ describe('DiamondCoreFacet', () => {
 
                         it('facets', async () => {
                             expectFacetsToMatch(await diamond.facets(), [
-                                [coreFacet.address, CORE_SELECTORS],
+                                [getCoreFacet().address, CORE_SELECTORS],
                                 [testFacet1.address, remainingSelectors],
                                 [testFacet2.address, replacedSelectors],
                             ]);
@@ -653,24 +543,7 @@ describe('DiamondCoreFacet', () => {
         let cutTransaction: ContractTransaction;
 
         describeStep('perform initial cut', () => {
-            step('add facet1', async () => {
-                cutTransaction = await diamond.diamondCut([{
-                    facetAddress: testFacet1.address,
-                    action: 0, functionSelectors,
-                }], ethers.constants.AddressZero, "0x");
-            });
-
-            it('should emit the correct event', async () => {
-                await expect(cutTransaction).to.emit(diamond, 'DiamondCut');
-                const logs = (await cutTransaction.wait()).logs;
-                const eventHash = diamond.interface.getEventTopic('DiamondCut');
-                const dcLogs = logs.filter(log => log.topics[0] === eventHash);
-                expect(dcLogs, '#dcLogs').to.have.lengthOf(1);
-                const event = diamond.interface.parseLog(dcLogs[0]);
-                expect(event.args, 'event.args').to.deep.equal([[
-                    [testFacet1.address, 0, functionSelectors],
-                ], ethers.constants.AddressZero, "0x"]);
-            });
+            stepAddFacet(diamond, () => testFacet1, functionSelectors);
         });
 
         describeStep('before remove', () => {
@@ -687,13 +560,13 @@ describe('DiamondCoreFacet', () => {
             describe('IDiamondLoupe', () => {
                 it('facets', async () => {
                     expectFacetsToMatch(await diamond.facets(), [
-                        [coreFacet.address, CORE_SELECTORS],
+                        [getCoreFacet().address, CORE_SELECTORS],
                         [testFacet1.address, functionSelectors],
                     ]);
                 });
 
                 it('facetFunctionSelectors(CoreFacet)', async () => {
-                    expect(await diamond.facetFunctionSelectors(coreFacet.address)).to.have.members(CORE_SELECTORS);
+                    expect(await diamond.facetFunctionSelectors(getCoreFacet().address)).to.have.members(CORE_SELECTORS);
                 });
                 it('facetFunctionSelectors(TestFacet1)', async () => {
                     expect(await diamond.facetFunctionSelectors(testFacet1.address)).to.have.members(functionSelectors);
@@ -703,12 +576,12 @@ describe('DiamondCoreFacet', () => {
                 });
 
                 it('facetAddresses', async () => {
-                    expect(await diamond.facetAddresses()).to.have.members([coreFacet.address, testFacet1.address]);
+                    expect(await diamond.facetAddresses()).to.have.members([getCoreFacet().address, testFacet1.address]);
                 });
 
                 it('facetAddress(facets)', async () => {
                     const sig = Interface.getSighash(diamond.interface.getFunction('facets'));
-                    expect(await diamond.facetAddress(sig)).to.equal(coreFacet.address);
+                    expect(await diamond.facetAddress(sig)).to.equal(getCoreFacet().address);
                 });
                 it('facetAddress(a)', async () => {
                     const sig = Interface.getSighash(diamond.interface.getFunction('a'));
@@ -729,24 +602,7 @@ describe('DiamondCoreFacet', () => {
         });
 
         describeStep('perform remove', () => {
-            step('remove facet1', async () => {
-                cutTransaction = await diamond.diamondCut([{
-                    facetAddress: ethers.constants.AddressZero,
-                    action: 2, functionSelectors: [SEL.b],
-                }], ethers.constants.AddressZero, "0x");
-            });
-
-            it('should emit the correct event', async () => {
-                await expect(cutTransaction).to.emit(diamond, 'DiamondCut');
-                const logs = (await cutTransaction.wait()).logs;
-                const eventHash = diamond.interface.getEventTopic('DiamondCut');
-                const dcLogs = logs.filter(log => log.topics[0] === eventHash);
-                expect(dcLogs, '#dcLogs').to.have.lengthOf(1);
-                const event = diamond.interface.parseLog(dcLogs[0]);
-                expect(event.args, 'event.args').to.deep.equal([[
-                    [ethers.constants.AddressZero, 2, [SEL.b]],
-                ], ethers.constants.AddressZero, "0x"]);
-            });
+            stepRemoveFacet(diamond, [SEL.b]);
         });
 
         describeStep('after remove', () => {
@@ -763,13 +619,13 @@ describe('DiamondCoreFacet', () => {
             describe('IDiamondLoupe', () => {
                 it('facets', async () => {
                     expectFacetsToMatch(await diamond.facets(), [
-                        [coreFacet.address, CORE_SELECTORS],
+                        [getCoreFacet().address, CORE_SELECTORS],
                         [testFacet1.address, remainingSelectors],
                     ]);
                 });
 
                 it('facetFunctionSelectors(CoreFacet)', async () => {
-                    expect(await diamond.facetFunctionSelectors(coreFacet.address)).to.have.members(CORE_SELECTORS);
+                    expect(await diamond.facetFunctionSelectors(getCoreFacet().address)).to.have.members(CORE_SELECTORS);
                 });
                 it('facetFunctionSelectors(TestFacet1)', async () => {
                     expect(await diamond.facetFunctionSelectors(testFacet1.address)).to.have.members(remainingSelectors);
@@ -779,12 +635,12 @@ describe('DiamondCoreFacet', () => {
                 });
 
                 it('facetAddresses', async () => {
-                    expect(await diamond.facetAddresses()).to.have.members([coreFacet.address, testFacet1.address]);
+                    expect(await diamond.facetAddresses()).to.have.members([getCoreFacet().address, testFacet1.address]);
                 });
 
                 it('facetAddress(facets)', async () => {
                     const sig = Interface.getSighash(diamond.interface.getFunction('facets'));
-                    expect(await diamond.facetAddress(sig)).to.equal(coreFacet.address);
+                    expect(await diamond.facetAddress(sig)).to.equal(getCoreFacet().address);
                 });
                 it('facetAddress(a)', async () => {
                     const sig = Interface.getSighash(diamond.interface.getFunction('a'));
@@ -812,24 +668,7 @@ describe('DiamondCoreFacet', () => {
         let cutTransaction: ContractTransaction;
 
         describeStep('perform initial cut', () => {
-            step('add facet1', async () => {
-                cutTransaction = await diamond.diamondCut([{
-                    facetAddress: testFacet1.address,
-                    action: 0, functionSelectors,
-                }], ethers.constants.AddressZero, "0x");
-            });
-
-            it('should emit the correct event', async () => {
-                await expect(cutTransaction).to.emit(diamond, 'DiamondCut');
-                const logs = (await cutTransaction.wait()).logs;
-                const eventHash = diamond.interface.getEventTopic('DiamondCut');
-                const dcLogs = logs.filter(log => log.topics[0] === eventHash);
-                expect(dcLogs, '#dcLogs').to.have.lengthOf(1);
-                const event = diamond.interface.parseLog(dcLogs[0]);
-                expect(event.args, 'event.args').to.deep.equal([[
-                    [testFacet1.address, 0, functionSelectors],
-                ], ethers.constants.AddressZero, "0x"]);
-            });
+            stepAddFacet(diamond, () => testFacet1, functionSelectors);
         });
 
         describeStep('before remove', () => {
@@ -846,13 +685,13 @@ describe('DiamondCoreFacet', () => {
             describe('IDiamondLoupe', () => {
                 it('facets', async () => {
                     expectFacetsToMatch(await diamond.facets(), [
-                        [coreFacet.address, CORE_SELECTORS],
+                        [getCoreFacet().address, CORE_SELECTORS],
                         [testFacet1.address, functionSelectors],
                     ]);
                 });
 
                 it('facetFunctionSelectors(CoreFacet)', async () => {
-                    expect(await diamond.facetFunctionSelectors(coreFacet.address)).to.have.members(CORE_SELECTORS);
+                    expect(await diamond.facetFunctionSelectors(getCoreFacet().address)).to.have.members(CORE_SELECTORS);
                 });
                 it('facetFunctionSelectors(TestFacet1)', async () => {
                     expect(await diamond.facetFunctionSelectors(testFacet1.address)).to.have.members(functionSelectors);
@@ -862,12 +701,12 @@ describe('DiamondCoreFacet', () => {
                 });
 
                 it('facetAddresses', async () => {
-                    expect(await diamond.facetAddresses()).to.have.members([coreFacet.address, testFacet1.address]);
+                    expect(await diamond.facetAddresses()).to.have.members([getCoreFacet().address, testFacet1.address]);
                 });
 
                 it('facetAddress(facets)', async () => {
                     const sig = Interface.getSighash(diamond.interface.getFunction('facets'));
-                    expect(await diamond.facetAddress(sig)).to.equal(coreFacet.address);
+                    expect(await diamond.facetAddress(sig)).to.equal(getCoreFacet().address);
                 });
                 it('facetAddress(a)', async () => {
                     const sig = Interface.getSighash(diamond.interface.getFunction('a'));
@@ -888,24 +727,7 @@ describe('DiamondCoreFacet', () => {
         });
 
         describeStep('perform remove', () => {
-            step('remove facet1', async () => {
-                cutTransaction = await diamond.diamondCut([{
-                    facetAddress: ethers.constants.AddressZero,
-                    action: 2, functionSelectors,
-                }], ethers.constants.AddressZero, "0x");
-            });
-
-            it('should emit the correct event', async () => {
-                await expect(cutTransaction).to.emit(diamond, 'DiamondCut');
-                const logs = (await cutTransaction.wait()).logs;
-                const eventHash = diamond.interface.getEventTopic('DiamondCut');
-                const dcLogs = logs.filter(log => log.topics[0] === eventHash);
-                expect(dcLogs, '#dcLogs').to.have.lengthOf(1);
-                const event = diamond.interface.parseLog(dcLogs[0]);
-                expect(event.args, 'event.args').to.deep.equal([[
-                    [ethers.constants.AddressZero, 2, functionSelectors],
-                ], ethers.constants.AddressZero, "0x"]);
-            });
+            stepRemoveFacet(diamond, functionSelectors);
         });
 
         describeStep('after remove', () => {
@@ -920,11 +742,11 @@ describe('DiamondCoreFacet', () => {
 
             describe('IDiamondLoupe', () => {
                 it('facets', async () => {
-                    expectFacetsToMatch(await diamond.facets(), [[coreFacet.address, CORE_SELECTORS]]);
+                    expectFacetsToMatch(await diamond.facets(), [[getCoreFacet().address, CORE_SELECTORS]]);
                 });
 
                 it('facetFunctionSelectors(CoreFacet)', async () => {
-                    expect(await diamond.facetFunctionSelectors(coreFacet.address)).to.have.members(CORE_SELECTORS);
+                    expect(await diamond.facetFunctionSelectors(getCoreFacet().address)).to.have.members(CORE_SELECTORS);
                 });
                 it('facetFunctionSelectors(TestFacet1)', async () => {
                     expect(await diamond.facetFunctionSelectors(testFacet1.address)).to.have.members([]);
@@ -934,12 +756,12 @@ describe('DiamondCoreFacet', () => {
                 });
 
                 it('facetAddresses', async () => {
-                    expect(await diamond.facetAddresses()).to.have.members([coreFacet.address]);
+                    expect(await diamond.facetAddresses()).to.have.members([getCoreFacet().address]);
                 });
 
                 it('facetAddress(facets)', async () => {
                     const sig = Interface.getSighash(diamond.interface.getFunction('facets'));
-                    expect(await diamond.facetAddress(sig)).to.equal(coreFacet.address);
+                    expect(await diamond.facetAddress(sig)).to.equal(getCoreFacet().address);
                 });
                 it('facetAddress(a)', async () => {
                     const sig = Interface.getSighash(diamond.interface.getFunction('a'));
@@ -965,17 +787,11 @@ describe('DiamondCoreFacet', () => {
         const modifiersFunc = FunctionFragment.fromString('modifiers() external view returns (bytes24[])');
         const modsInterface = new Interface([modifiersFunc]);
 
-        step('add facet1 with modifiers', async () => {
-             await diamond.diamondCut([{
-                facetAddress: testFacet1.address,
-                action: 0,
-                functionSelectors: [
-                    SEL.doNothing, SEL.deployedBlock, SEL.modifiers,
-                    SEL.addModifier1, SEL.addModifier2,
-                    SEL.removeModifier1, SEL.removeModifier2,
-                ],
-            }], testFacet1.address, SEL.initialize);
-        });
+        stepAddFacet(diamond, () => testFacet1, [
+            SEL.doNothing, SEL.deployedBlock, SEL.modifiers,
+            SEL.addModifier1, SEL.addModifier2,
+            SEL.removeModifier1, SEL.removeModifier2,
+        ], 'initialize');
 
         step('add modifier1', async () => await diamond.addModifier1());
 
@@ -991,7 +807,7 @@ describe('DiamondCoreFacet', () => {
         });
 
         step('remove modifier1', async () => await diamond.removeModifier1());
-        
+
         step('add modifier2', async () => await diamond.addModifier2());
 
         it('should list modifier2 as modifiers', async () => {
@@ -1023,13 +839,7 @@ describe('DiamondCoreFacet', () => {
 
     describe('send view transactions for gas reporter', () => {
         describeDiamond('Diamond with DiamondCoreFacet - Add testFacet1', diamond => {
-            step('add facet1', async () => {
-                await diamond.diamondCut([{
-                    facetAddress: testFacet1.address,
-                    action: 0,
-                    functionSelectors: [SEL.b, SEL.getValue, SEL.deployedBlock, SEL.doNothing],
-                }], testFacet1.address, SEL.initialize);
-            });
+            stepAddFacet(diamond, () => testFacet1, [SEL.b, SEL.getValue, SEL.deployedBlock, SEL.doNothing], 'initialize');
 
             describe('supportsInterface', () => {
                 it('IERC165', async () => {
@@ -1060,7 +870,7 @@ describe('DiamondCoreFacet', () => {
                 });
 
                 it('facetFunctionSelectors(CoreFacet)', async () => {
-                    await admin.sendTransaction(await diamond.populateTransaction.facetFunctionSelectors(coreFacet.address));
+                    await admin.sendTransaction(await diamond.populateTransaction.facetFunctionSelectors(getCoreFacet().address));
                 });
                 it('facetFunctionSelectors(TestFacet1)', async () => {
                     await admin.sendTransaction(await diamond.populateTransaction.facetFunctionSelectors(testFacet1.address));

@@ -1,19 +1,26 @@
-import type { Contract } from '@ethersproject/contracts';
+import type { Contract, ContractTransaction } from '@ethersproject/contracts';
 import { expect } from 'chai';
+import * as ethers from 'ethers';
 import * as hre from 'hardhat';
-import { AsyncFunc, Context, Func, Suite, Test } from 'mocha';
-import { formatEvent, StrictContract } from '../scripts/utils';
+import type { AsyncFunc, Context, Func, Suite } from 'mocha';
+import { step } from 'mocha-steps';
+import { Connectable, ContractTypeFromConnectables, createUseDiamond, formatEvent, getInterface, StrictContract } from '../scripts/utils';
+import { DiamondCoreFacet, DiamondCoreFacet__factory, Diamond__factory, IDiamondCut, IDiamondCut__factory, IDiamondLoupe__factory, IERC165__factory } from '../typechain';
 
 const LOG_EVENTS = (process.env.LOG_EVENTS || '').toLowerCase() === 'true';
+if (LOG_EVENTS) console.log('Enabled logging events of registered contracts');
 
 let prevBlockNumber: number;
-type LogEventsArray = [contract: StrictContract<Contract> | (() => StrictContract<Contract>), name?: string][];
+type StrictContractGen<C extends Contract = Contract> = StrictContract<C> | (() => StrictContract<C>);
+type LogEventsArray = [contract: StrictContractGen, name?: string][];
+const knownEvents = new Map<string, ethers.utils.EventFragment>();
 export async function logEvents(title: string, contract: StrictContract<Contract>, name = 'Contract') {
     if (!LOG_EVENTS || !contract.address) return;
     const _logEventBN = (contract as any)._logEventBN;
     // console.log('-- logEvents', title, name, _logEventBN, 'VS', prevBlockNumber);
     // console.log('\tBN:', await hre.ethers.provider.getBlockNumber());
     const max = _logEventBN ? Math.max(_logEventBN, prevBlockNumber) : prevBlockNumber;
+    if (!(contract as any)._logEventBN) logEvents.registerEvents(contract);
     (contract as any)._logEventBN = max;
     let events = await contract.queryFilter({}, max + 1);
     events = events.filter(e => e.blockNumber > max);
@@ -22,7 +29,7 @@ export async function logEvents(title: string, contract: StrictContract<Contract
     console.log(`====== ${name} events during: ${title} ======`);
     events.map(ev => {
         try { return formatEvent(ev, contract.interface.getEvent(ev.event || '')); } catch (e) {
-            return formatEvent(ev);
+            return formatEvent(ev, knownEvents.get(ev.topics[0]));
         }
     }).forEach(e => console.log('\t- ' + e));
     // console.log('='.repeat(title.length + 30 + name.length));
@@ -45,9 +52,13 @@ logEvents.forContext = async function (context: Context, title?: string) {
     title ||= context.runnable().titlePath().slice(1).join(' > ');
     return logEvents.forSuite(context.runnable().parent!, title);
 }
-logEvents.setup = (contract: StrictContract<Contract> | (() => StrictContract<Contract>), name?: string) => {
+logEvents.registerEvents = (events: ethers.utils.EventFragment[] | Connectable) => {
+    if (!Array.isArray(events)) events = Object.values(getInterface(events).events);
+    events.forEach(e => knownEvents.set(ethers.utils.keccak256(Buffer.from(e.format('sighash'))), e));
+};
+logEvents.setup = (contract: StrictContractGen, name?: string) => {
     if (!LOG_EVENTS) return;
-    prevBlockNumber = hre.ethers.provider.blockNumber;
+    // prevBlockNumber = hre.ethers.provider.blockNumber;
     before('logEvents:before:' + (name || '?'), function (this: Context) {
         const suite = this.runnable().parent!;
         (suite as any)._logEventsArray ||= [];
@@ -112,7 +123,6 @@ function _describeStep(desc: (typeof describe)['skip'], name: string, func: (thi
                 s.suites = [];
                 s.tests = [];
             });
-            suite.parent?.tests.push(new Test('--- skipping everything after failed step ---'));
             suite.parent?.tests.forEach(t => t.pending = true);
         });
         func.apply(this);
@@ -133,3 +143,102 @@ export function expectFacetsToMatch(expected: [string, string[]][], actual: [str
         expect(v, `facet:${k}`).to.have.members(expectedMap.get(k)!);
     }
 };
+
+export function useDescribeDiamondWithCore<FS extends Connectable<any>[]>(signer: ethers.Signer | (() => ethers.Signer), extraFactories: FS) {
+    const defaultFactories = [IERC165__factory, IDiamondCut__factory, IDiamondLoupe__factory] as const;
+    defaultFactories.forEach(logEvents.registerEvents);
+    extraFactories.forEach(logEvents.registerEvents);
+    const [diamondProxy, setDiamond] = createUseDiamond(...defaultFactories, ...extraFactories);
+    logEvents.setup(diamondProxy, 'Diamond');
+
+    const getSigner = () => typeof signer === 'function' ? signer() : signer;
+
+    let coreFacet: DiamondCoreFacet;
+    before('useDescribeDiamondWithCore:DiamondCoreFacet', async () => {
+        const factory = new DiamondCoreFacet__factory(getSigner());
+        coreFacet = await factory.deploy();
+        logEvents.setup(coreFacet, 'DiamondCoreFacet');
+    });
+
+    let diamondFactory: Diamond__factory;
+    before('useDescribeDiamondWithCore:diamondFactory', () => {
+        diamondFactory = new Diamond__factory(getSigner());
+    });
+
+    function describeDiamond<CS extends Connectable<any>[]>(name: string,
+        cb: (this: Suite, dia: StrictContract<ContractTypeFromConnectables<[...CS, ...typeof defaultFactories, ...FS]>>) => void, ...contracts: CS) {
+        describeDiamond.suite(name, function () {
+            step('deploy diamond', async function () {
+                const S = (name: string) => coreFacet.interface.getSighash(name);
+                const diamond = await diamondFactory.deploy([{
+                    facet: coreFacet.address,
+                    initializer: S('initialize'),
+                    selectors: [
+                        S('supportsInterface'), S('diamondCut'), S('facets'),
+                        S('facetFunctionSelectors'), S('facetAddresses'), S('facetAddress'),
+                    ],
+                }]);
+                logEvents.setup(diamond, 'diamond for ' + name);
+                logEvents(name, diamond, 'Diamond');
+                setDiamond(diamond, getSigner(), ...contracts);
+            });
+            cb.call(this, diamondProxy as any);
+        });
+        describeDiamond.suite = describe;
+    }
+    describeDiamond.suite = describe as Mocha.PendingSuiteFunction;
+    const w = (f: any): typeof describeDiamond => ((...a: any) => { const o = describeDiamond.suite; describeDiamond.suite = f; (describeDiamond as any)(...a); describeDiamond.suite = o; }) as any;
+    describeDiamond.skip = w(describe.skip); describeDiamond.only = w(describe.only); describeDiamond.step = w(describeStep);
+    return [describeDiamond, diamondProxy, setDiamond, () => coreFacet] as const;
+}
+
+function stepFacetAction(action: number, diamond: StrictContract<IDiamondCut>, facet: () => Contract, facetSelectors: string[] | (() => string[]), initialize?: string | [string, ...any[]]): () => ContractTransaction {
+    let cutTransaction: ContractTransaction;
+    const getFacet = () => typeof facet === 'function' ? facet() : facet;
+    const getSelectors = () => typeof facetSelectors === 'function' ? facetSelectors() : facetSelectors;
+    const getInitializeStuff = () => {
+        try {
+            const initializeAddr = initialize?.length ? getFacet().address : ethers.constants.AddressZero;
+            const initializeData = initialize ? (getFacet().interface.encodeFunctionData as any)(
+                ...(typeof initialize === 'string' ? [initialize] : [initialize[0], initialize.slice(1)])) : '0x';
+            console.log('=>', initializeAddr, initializeData);
+            return [initializeAddr, initializeData] as const;
+        } catch (e) {
+            console.error(e);
+            const arr = typeof initialize === 'string' ? [initialize] : initialize;
+            expect.fail(`Could not encode function data for [${arr?.map(v => JSON.stringify(v)).join(', ')}]`);
+            throw e;
+        }
+    };
+    step(`${['add', 'replace', 'remove'][action]} facet`, async () => {
+        console.log('Adding facet to', diamond.address);
+        const functionSelectors = getSelectors();
+        if (!Array.isArray(functionSelectors)) expect.fail('No string array (generator) passed as facetSelectors');
+        cutTransaction = await diamond.diamondCut([{
+            action, functionSelectors,
+            facetAddress: action === 2 ? ethers.constants.AddressZero : getFacet().address,
+        }], ...getInitializeStuff());
+    });
+
+    it('should emit the correct diamondCut event', async () => {
+        await expect(cutTransaction).to.emit(diamond, 'DiamondCut');
+        const logs = (await cutTransaction.wait()).logs;
+        const eventHash = diamond.interface.getEventTopic('DiamondCut');
+        const dcLogs = logs.filter(log => log.topics[0] === eventHash);
+        expect(dcLogs, '#dcLogs').to.have.lengthOf(1);
+        const event = diamond.interface.parseLog(dcLogs[0]);
+        expect(event.args, 'event.args').to.deep.equal([[
+            [action === 2 ? ethers.constants.AddressZero : getFacet().address, action, getSelectors()],
+        ], ...getInitializeStuff()]);
+    });
+    return () => cutTransaction;
+}
+
+export const stepAddFacet = stepFacetAction.bind(null, 0);
+export const stepReplaceFacet = stepFacetAction.bind(null, 1);
+export function stepRemoveFacet(diamond: StrictContract<IDiamondCut>, functionSelectors: string[] | (() => string[])): () => ContractTransaction
+export function stepRemoveFacet(diamond: StrictContract<IDiamondCut>, facet: () => Contract, functionSelectors: string[] | (() => string[]), initialize?: string | [string, ...any[]]): () => ContractTransaction
+export function stepRemoveFacet(diamond: StrictContract<IDiamondCut>, facetOrFunctionSelectors: string[] | (() => Contract | string[]), functionSelectors?: string[] | (() => string[]), initialize?: string | [string, ...any[]]): () => ContractTransaction {
+    if (functionSelectors) return stepFacetAction(2, diamond, facetOrFunctionSelectors as () => Contract, functionSelectors, initialize);
+    return stepFacetAction(2, diamond, undefined!, facetOrFunctionSelectors as () => string[]);
+}
