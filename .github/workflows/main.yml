@@ -23,14 +23,25 @@ jobs:
         uses: actions/cache@v2.1.4
         with:
           path: ${{ steps.yarn-cache.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          key: yarn-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
-            ${{ runner.os }}-yarn-
+            yarn-
+      - name: Cache dependencies
+        uses: actions/cache@v2.1.4
+        with:
+          path: |
+            .pnp.cjs
+            .yarn/unplugged
+          key: ${{ runner.os }}-yarn-deps-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-deps-
       - name: Install dependencies
         run: yarn --immutable
       - name: Compile contracts
         run: yarn hardhat typechain
       - name: Compile TypeScript
         run: yarn tsc
-      - name: Compile and run tests
+      - name: Run tests
         run: yarn hardhat test --network hardhat --no-compile
+        env:
+          FORCE_COLOR: 1
