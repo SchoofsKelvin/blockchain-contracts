@@ -66,13 +66,13 @@ library DiamondLibrary {
     bytes32 constant BYTES32_4F = bytes32(bytes4(0xffffffff));
 
     function removeSelector(StoredFacet storage facet, uint16 _selectorIndex) internal {
+        DiamondStorage storage ds = getStorage();
         uint16 currentCount = facet.selectorCount;
         if (currentCount == 1) {
             // If we're removing the last selector, remove the whole facet
             // (and reset its fields in case the facet gets readded later)
             facet.selectorArray[0] = bytes32(0);
             facet.selectorCount = 0;
-            DiamondStorage storage ds = getStorage();
             uint256 facetIndex = facet.facetIndex;
             uint256 lastIndex = ds.facetsArray.length - 1;
             ds.facetsArray[facetIndex] = ds.facetsArray[lastIndex];
@@ -97,7 +97,8 @@ library DiamondLibrary {
                 curBytes = curBytes & ~(BYTES32_4F >> curIndex);
                 // Save the updated bytes32 value
                 facet.selectorArray[curLocation] = curBytes;
-                // TODO: Update selectorIndex of moved selector + write a test for this
+                // Update selectorIndex of moved selector
+                ds.selectors[curSelector] = packSelector(curSelector, _selectorIndex, facet.facetAddress);
             }
         } else {
             // We are moving from the last slot to another slot
@@ -109,7 +110,8 @@ library DiamondLibrary {
             // Save the updated bytes32 values
             facet.selectorArray[selLocation] = selBytes;
             facet.selectorArray[curLocation] = curBytes;
-            // TODO: Update selectorIndex of moved selector + write a test for this
+            // Update selectorIndex of moved selector
+            ds.selectors[curSelector] = packSelector(curSelector, _selectorIndex, facet.facetAddress);
         }
         facet.selectorCount = currentCount - 1;
     }

@@ -7,7 +7,7 @@ import { ContractTransaction } from 'ethers';
 import { ethers } from 'hardhat';
 import { step } from 'mocha-steps';
 import { createUseDiamond, getInterfaceHash } from '../../scripts/utils';
-import { DiamondCoreFacet__factory, DiamondTestFacet, DiamondTestFacet__factory, Diamond__factory, IDiamondCut__factory, IDiamondLoupe__factory, IERC165__factory } from '../../typechain';
+import { DiamondTestFacet, DiamondTestFacet__factory, Diamond__factory, IDiamondCut__factory, IDiamondLoupe__factory, IERC165__factory } from '../../typechain';
 import { before, describeStep, expectFacetsToMatch, logEvents, stepAddFacet, stepRemoveFacet, stepReplaceFacet, useDescribeDiamondWithCore } from '../utils';
 
 const { expect } = chai.use(solidity);
@@ -53,13 +53,11 @@ const CORE_SELECTORS = [
 describe('DiamondCoreFacet', () => {
     let admin: SignerWithAddress;
     let diamondFactory: Diamond__factory;
-    let diamondCoreFactory: DiamondCoreFacet__factory;
     let diamondTestFactory: DiamondTestFacet__factory;
 
     before('setup signers', async () => {
         [admin] = await ethers.getSigners();
         diamondFactory = new Diamond__factory(admin);
-        diamondCoreFactory = new DiamondCoreFacet__factory(admin);
         diamondTestFactory = new DiamondTestFacet__factory(admin);
         console.log('Signer:', admin.address);
     });
@@ -540,8 +538,6 @@ describe('DiamondCoreFacet', () => {
         const functionSelectors = [SEL.a, SEL.b, SEL.setValue, SEL.getValue, SEL.deployedBlock];
         const remainingSelectors = functionSelectors.filter(s => s !== SEL.b);
 
-        let cutTransaction: ContractTransaction;
-
         describeStep('perform initial cut', () => {
             stepAddFacet(diamond, () => testFacet1, functionSelectors);
         });
@@ -660,6 +656,89 @@ describe('DiamondCoreFacet', () => {
             });
         });
     }, DiamondTestFacet__factory);
+
+    describe('Diamond with DiamondCoreFacet - Add testFacet1, remove testFacet1', () => {
+        function describeCase(name: string, functionSelectors: string[], removingSelectors: string[]) {
+            describeDiamond(name, diamond => {
+                const remainingSelectors = functionSelectors.filter(s => !removingSelectors.includes(s));
+
+                describeStep('perform initial cut', () => {
+                    stepAddFacet(diamond, () => testFacet1, functionSelectors);
+                });
+
+                describeStep('before remove', () => {
+                    it('facets', async () => {
+                        expectFacetsToMatch(await diamond.facets(), [
+                            [getCoreFacet().address, CORE_SELECTORS],
+                            [testFacet1.address, functionSelectors],
+                        ], SEL);
+                    });
+                });
+
+                describeStep('perform remove', () => {
+                    stepRemoveFacet(diamond, removingSelectors);
+                });
+
+                describeStep('after remove', () => {
+                    it('facets', async () => {
+                        expectFacetsToMatch(await diamond.facets(), [
+                            [getCoreFacet().address, CORE_SELECTORS],
+                            [testFacet1.address, remainingSelectors],
+                        ], SEL);
+                    });
+                });
+            });
+        }
+
+        describeCase('same/same', [
+            SEL.a, SEL.b, SEL.setValue, SEL.getValue, SEL.deployedBlock
+        ], [SEL.deployedBlock]);
+
+        describeCase('same/same + same/diff', [
+            SEL.a, SEL.b, SEL.setValue, SEL.getValue, SEL.deployedBlock
+        ], [SEL.deployedBlock, SEL.b]);
+
+        describeCase('same/diff', [
+            SEL.a, SEL.b, SEL.setValue, SEL.getValue, SEL.deployedBlock
+        ], [SEL.b]);
+
+        describeCase('same/diff + same/same', [
+            SEL.a, SEL.b, SEL.setValue, SEL.getValue, SEL.deployedBlock
+            // First remove should moved deployedBlock to b's location
+        ], [SEL.b, SEL.deployedBlock]);
+
+        describeCase('same/diff + same/dif', [
+            // First remove should moved deployedBlock to b's location
+            SEL.a, SEL.b, SEL.setValue, SEL.getValue, SEL.deployedBlock
+        ], [SEL.b, SEL.getValue]);
+
+        describeCase('diff', [
+            SEL.a, SEL.b,
+            ...[1, 2, 3, 4, 5, 6, 7, 8].map(i => `0x0000000${i}`),
+            SEL.setValue, SEL.getValue, SEL.deployedBlock
+        ], [SEL.b]);
+
+        describeCase('diff + diff', [
+            // First remove should move deployedBlock to b's location
+            SEL.a, SEL.b,
+            ...[1, 2, 3, 4, 5, 6, 7, 8].map(i => `0x0000000${i}`),
+            SEL.setValue, SEL.getValue, SEL.deployedBlock
+        ], [SEL.b, SEL.deployedBlock]);
+
+        describeCase('diff + same/same', [
+            // First remove should move deployedBlock to b's location
+            SEL.a, SEL.b,
+            ...[1, 2, 3, 4, 5, 6, 7, 8].map(i => `0x0000000${i}`),
+            SEL.setValue, SEL.getValue, SEL.deployedBlock
+        ], [SEL.b, SEL.getValue]);
+
+        describeCase('diff + same/diff', [
+            // First remove should move deployedBlock to b's location
+            SEL.a, SEL.b,
+            ...[1, 2, 3, 4, 5, 6, 7, 8].map(i => `0x0000000${i}`),
+            SEL.setValue, SEL.getValue, SEL.deployedBlock
+        ], [SEL.b, SEL.setValue]);
+    });
 
     describeDiamond('Diamond with DiamondCoreFacet - Add testFacet1, remove testFacet1 completely', diamond => {
         const functionSelectors = [SEL.a, SEL.b, SEL.setValue, SEL.getValue, SEL.deployedBlock];

@@ -13,6 +13,7 @@ if (LOG_EVENTS) console.log('Enabled logging events of registered contracts');
 let prevBlockNumber: number;
 type StrictContractGen<C extends Contract = Contract> = StrictContract<C> | (() => StrictContract<C>);
 type LogEventsArray = [contract: StrictContractGen, name?: string][];
+const knownContracts: LogEventsArray = [];
 const knownEvents = new Map<string, ethers.utils.EventFragment>();
 export async function logEvents(title: string, contract: StrictContract<Contract>, name = 'Contract') {
     if (!LOG_EVENTS || !contract.address) return;
@@ -38,7 +39,7 @@ export async function logEvents(title: string, contract: StrictContract<Contract
 logEvents.forSuite = async function (suite: Suite, title: string) {
     if (!LOG_EVENTS) return;
     const array = (suite as any)._logEventsArray as LogEventsArray;
-    //console.log('logEvents.forSuite:', title, suite.title, array?.length);
+    // console.log('logEvents.forSuite:', title, suite.title, array?.length);
     if (array) for (let [contract, name] of array) {
         if (typeof contract === 'function') {
             const contr = contract();
@@ -46,7 +47,13 @@ logEvents.forSuite = async function (suite: Suite, title: string) {
         }
         await logEvents(title, contract, name);
     }
-    if (suite.parent) await logEvents.forSuite(suite.parent, title);
+    if (suite.parent) {
+        await logEvents.forSuite(suite.parent, title);
+    } else {
+        for (const [contract, name] of knownContracts) {
+            await logEvents(name || 'Contract', typeof contract === 'function' ? contract() : contract);
+        }
+    }
 }
 logEvents.forContext = async function (context: Context, title?: string) {
     title ||= context.runnable().titlePath().slice(1).join(' > ');
@@ -56,11 +63,14 @@ logEvents.registerEvents = (events: ethers.utils.EventFragment[] | Connectable) 
     if (!Array.isArray(events)) events = Object.values(getInterface(events).events);
     events.forEach(e => knownEvents.set(ethers.utils.keccak256(Buffer.from(e.format('sighash'))), e));
 };
-logEvents.setup = (contract: StrictContractGen, name?: string) => {
+logEvents.setup = (contract: StrictContractGen, name?: string, depth = 0) => {
     if (!LOG_EVENTS) return;
+    knownContracts.push([contract, name]);
     // prevBlockNumber = hre.ethers.provider.blockNumber;
     before('logEvents:before:' + (name || '?'), function (this: Context) {
-        const suite = this.runnable().parent!;
+        let suite = this.runnable().parent;
+        while (depth--) suite = suite?.parent;
+        if (!suite) throw new Error('No Suite found at given depth');
         (suite as any)._logEventsArray ||= [];
         ((suite as any)._logEventsArray as LogEventsArray).push([contract, name]);
         //console.log('logEvents:before:' + (name || '?'), suite.title, (suite as any)._logEventsArray.length);
@@ -134,13 +144,22 @@ export function describeStep(name: string, func: (this: Suite) => void) {
 describeStep.skip = _describeStep.bind(null, describe.skip);
 describeStep.only = _describeStep.bind(null, describe.only);
 
-export function expectFacetsToMatch(expected: [string, string[]][], actual: [string, string[]][]) {
+export function expectFacetsToMatch(
+    actual: [string, string[]][],
+    expected: [string, string[]][],
+    mapping?: Record<string, string>) {
+    const dualMapping = new Map<string, string>();
+    if (mapping) Object.entries(mapping).forEach(([k, v]) => {
+        dualMapping.set(k, v);
+        dualMapping.set(v, k);
+    });
     if (actual?.length !== expected?.length) return false;
     const expectedMap = new Map<string, string[]>();
-    expected.forEach(([k, v]) => expectedMap.set(k, v));
+    expected.forEach(([k, v]) => expectedMap.set(k, v.map(s => dualMapping.get(s) || s)));
     expect(actual.map(v => v[0]), 'addresses').to.have.members(expected.map(v => v[0]));
     for (const [k, v] of actual) {
-        expect(v, `facet:${k}`).to.have.members(expectedMap.get(k)!);
+        const vMapped = v.map(s => dualMapping.get(s) || s);
+        expect(vMapped, `facet:${k}`).to.have.members(expectedMap.get(k)!);
     }
 };
 
@@ -178,7 +197,7 @@ export function useDescribeDiamondWithCore<FS extends Connectable<any>[]>(signer
                         S('facetFunctionSelectors'), S('facetAddresses'), S('facetAddress'),
                     ],
                 }]);
-                logEvents.setup(diamond, 'diamond for ' + name);
+                logEvents.setup(diamond, 'diamond for ' + name, 1);
                 logEvents(name, diamond, 'Diamond');
                 setDiamond(diamond, getSigner(), ...contracts);
             });
@@ -201,7 +220,6 @@ function stepFacetAction(action: number, diamond: StrictContract<IDiamondCut>, f
             const initializeAddr = initialize?.length ? getFacet().address : ethers.constants.AddressZero;
             const initializeData = initialize ? (getFacet().interface.encodeFunctionData as any)(
                 ...(typeof initialize === 'string' ? [initialize] : [initialize[0], initialize.slice(1)])) : '0x';
-            console.log('=>', initializeAddr, initializeData);
             return [initializeAddr, initializeData] as const;
         } catch (e) {
             console.error(e);
@@ -211,7 +229,6 @@ function stepFacetAction(action: number, diamond: StrictContract<IDiamondCut>, f
         }
     };
     step(`${['add', 'replace', 'remove'][action]} facet`, async () => {
-        console.log('Adding facet to', diamond.address);
         const functionSelectors = getSelectors();
         if (!Array.isArray(functionSelectors)) expect.fail('No string array (generator) passed as facetSelectors');
         cutTransaction = await diamond.diamondCut([{
