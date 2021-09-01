@@ -40,7 +40,6 @@ describe('SimplePaymentSplitterFactory', () => {
             const splitterAddr: string = deployReceipt.events?.[3].args?.[0];
             expect(splitterAddr, 'splitterAddr').to.be.a.properAddress;
             splitter = SimplePaymentSplitter__factory.connect(splitterAddr, admin);
-            console.log('splitterAddr:', splitter.address);
         });
 
         it('create events', async () => {

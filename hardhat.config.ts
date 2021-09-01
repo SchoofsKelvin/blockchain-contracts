@@ -28,10 +28,10 @@ const config: HardhatUserConfig = {
   },
   gasReporter: {
     showTimeSpent: true,
-    gasPrice: 10, // BNB "max average"
+    gasPrice: 50, // ETH easily achievable minimum
     currency: 'USD',
   },
-  defaultNetwork: 'localhost',
+  defaultNetwork: 'hardhat',
   networks: {
     /*ethereum: {
       url: `https://mainnet.infura.io/v3/${INFURA_KEY}`,

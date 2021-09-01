@@ -5,7 +5,7 @@ import "hardhat/console.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 contract Counter is Initializable {
-  
+
   uint256 count;
 
   event CountedTo(uint256 number);
@@ -19,7 +19,6 @@ contract Counter is Initializable {
   }
 
   function countUp() public returns (uint256) {
-    console.log("countUp: count =", count);
     uint256 newCount = count + 1;
     require(newCount > count, "Uint256 overflow");
     count = newCount;
@@ -28,7 +27,6 @@ contract Counter is Initializable {
   }
 
   function countDown() public returns (uint256) {
-    console.log("countDown: count =", count);
     uint256 newCount = count - 1;
     require(newCount < count, "Uint256 underflow");
     count = newCount;

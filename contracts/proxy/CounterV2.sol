@@ -19,7 +19,6 @@ contract CounterV2 is Initializable {
   }
 
   function countUp() public returns (uint256) {
-    console.log("countUpV2: count =", count);
     uint256 newCount;
     unchecked { newCount = count + 1; }
     require(newCount > count, "Uint256 overflow");
@@ -29,7 +28,6 @@ contract CounterV2 is Initializable {
   }
 
   function countDown() public returns (uint256) {
-    console.log("countDownV2: count =", count);
     uint256 newCount;
     unchecked { newCount = count - 1; }
     require(newCount < count, "Uint256 underflow");
@@ -39,7 +37,6 @@ contract CounterV2 is Initializable {
   }
 
   function setCount(uint256 number) public {
-    console.log("setCountV2: count =", count);
     count = number;
     emit CountedTo(count);
   }

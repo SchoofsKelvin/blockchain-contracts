@@ -34,7 +34,6 @@ describe('PaymentShareSplitter', () => {
             splitter = await (await splitterFactory.deploy([
                 payee0.address, payee1.address,
             ], [5], { value: 60 })).deployed();
-            console.log('simple splitter:', splitter.address);
         });
 
         it('construction events', async () => {
@@ -194,7 +193,6 @@ describe('PaymentShareSplitter', () => {
             splitter = await (await splitterFactory.deploy([
                 payee0.address, payee1.address,
             ], [5], { value: 60 })).deployed();
-            console.log('simple splitter:', splitter.address);
         });
 
         before('first release', async () => {
@@ -256,7 +254,6 @@ describe('PaymentShareSplitter', () => {
             splitter = await (await splitterFactory.deploy([
                 payee0.address, payee1.address,
             ], [5], { value: 60 })).deployed();
-            console.log('simple splitter:', splitter.address);
         });
 
         before('releases', async () => {
@@ -319,7 +316,7 @@ describe('PaymentShareSplitter', () => {
                     splitter = await (await splitterFactory.deploy([
                         payee0.address, payee1.address,
                     ], [2], { value: 150 })).deployed();
-                    console.log('Set splitter to', splitter.address, 'for', name, 'in', suite.fullTitle());
+                    //console.log('Set splitter to', splitter.address, 'for', name, 'in', suite.fullTitle());
                 });
                 cb.call(this);
             });
@@ -375,7 +372,6 @@ describe('PaymentShareSplitter', () => {
                 });
 
                 it('totalShares', async () => {
-                    console.log('Checking totalShares');
                     expect(await splitter.totalShares()).to.equal(5);
                 });
 

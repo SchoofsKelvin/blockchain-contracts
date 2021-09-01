@@ -32,7 +32,6 @@ describe('SimplePaymentSplitter', () => {
             splitter = await (await splitterFactory.deploy([
                 payee0.address, payee1.address,
             ], [5, 1], { value: 60 })).deployed();
-            console.log('simple splitter:', splitter.address);
         });
 
         it('construction events', async () => {
@@ -121,7 +120,6 @@ describe('SimplePaymentSplitter', () => {
                 payee0.address, payee1.address,
             ], [5, 1], { value: 60 })).deployed();
             splitter = splitter.connect(payee0);
-            console.log('simple splitter:', splitter.address);
         });
 
         step('withdrawPayments', async () => {
@@ -171,7 +169,6 @@ describe('SimplePaymentSplitter', () => {
             splitter = await (await splitterFactory.deploy([
                 payee0.address, payee1.address,
             ], [5, 1], { value: 60 })).deployed();
-            console.log('simple splitter:', splitter.address);
         });
 
         step('withdrawPaymentsFor', async () => {
@@ -226,7 +223,6 @@ describe('SimplePaymentSplitter', () => {
             ], [5, 1], { value: 60 })).deployed();
             splitter0 = splitter.connect(payee0);
             splitter1 = splitter.connect(payee1);
-            console.log('simple splitter:', splitter.address);
         });
 
         step('withdrawPayments', async () => {
