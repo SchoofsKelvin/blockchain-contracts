@@ -14,5 +14,9 @@
     "files": [
         "./exports.ts",
         "./hardhat.config.ts"
-    ]
+    ],
+    "ts-node": {
+      "transpileOnly": true,
+      "transpiler": "ts-node/transpilers/swc-experimental"
+    }
 }
