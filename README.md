@@ -54,6 +54,8 @@ Based on [EIP-1967](https://eips.ethereum.org/EIPS/eip-1967), a simple proxy sys
 - `ProxyBeacon` is simply a contract that stores an implementation address, along with an admin address that can change it
 - `ProxyObject` gets constructed with a beacon address. Every call will be proxied to the implementation address stored in the beacon
 
+**Note**: As specified by EIP-1967, `ProxyObject` uses the beacon in storage at `BEACON_SLOT`. If this is the zero address (e.g. we're in a `DELEGATECALL`), it will instead use the beacon passed to the `ProxyObject` constructor. Read [this EIP-1967 comment](https://ethereum-magicians.org/t/eip-1967-standard-proxy-storage-slots/3185/11?u=morlega) as to why I do this, as this seems to be quite a big issue in EIP-1967 I discovered.
+
 #### [ProxyObjectFactory](./contracts/proxy/ProxyObjectFactory.sol)
 A simple contract with a single function to create a `ProxyObject`:
 - `function deploy(ProxyBeacon beacon, bytes memory data) external returns (address addr)`
