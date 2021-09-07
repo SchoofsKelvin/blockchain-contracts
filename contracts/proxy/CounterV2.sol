@@ -1,8 +1,7 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.4;
 
-import "hardhat/console.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 contract CounterV2 is Initializable {
   

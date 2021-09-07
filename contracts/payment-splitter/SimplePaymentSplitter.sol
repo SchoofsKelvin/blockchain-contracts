@@ -2,10 +2,10 @@
 
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
+import { AddressUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
 
-import "../eip/IERC165.sol";
-import "../interfaces/IPaymentAgent.sol";
+import { IERC165 } from "../eip/IERC165.sol";
+import { IPaymentAgent, IPaymentAgent_INTERFACE_ID } from "../interfaces/IPaymentAgent.sol";
 
 /**
  * Based on OpenZeppelin's PaymentSplitter, except it supports modifying the payees/sharesOf without payment distortion.

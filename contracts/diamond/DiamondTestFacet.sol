@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import "../eip/IERC165.sol";
-import "../eip/IERC2535.sol";
-
-import "../StringUtils.sol";
-
-import "./DiamondLibrary.sol";
+import { IERC165 } from "../eip/IERC165.sol";
+import { StringUtils } from "../StringUtils.sol";
+import { DiamondLibrary } from "./DiamondLibrary.sol";
 
 /// For testing purposes only. It is (only) used by the tests.
 contract DiamondTestFacet {

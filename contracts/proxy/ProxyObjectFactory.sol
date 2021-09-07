@@ -2,8 +2,8 @@
 
 pragma solidity ^0.8.0;
 
-import "./ProxyBeacon.sol";
-import "./ProxyObject.sol";
+import { ProxyBeacon } from "./ProxyBeacon.sol";
+import { ProxyObject } from "./ProxyObject.sol";
 
 contract ProxyObjectFactory {
 

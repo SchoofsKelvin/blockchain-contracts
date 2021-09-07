@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import "../eip/IERC165.sol";
-import "../eip/IERC2535.sol";
+import { IERC165 } from "../eip/IERC165.sol";
+import { IDiamondCut, IDiamondLoupe } from "../eip/IERC2535.sol";
 
-import "../StringUtils.sol";
+import { StringUtils } from "../StringUtils.sol";
 
-import "./DiamondLibrary.sol";
+import { DiamondLibrary } from "./DiamondLibrary.sol";
 
 contract Diamond {
     using StringUtils for *;

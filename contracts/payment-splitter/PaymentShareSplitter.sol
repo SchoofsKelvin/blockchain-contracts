@@ -2,9 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
-
-import "./PaymentShareSplitterBase.sol";
+import { PaymentShareSplitterBase, PaymentSharePeriod } from "./PaymentShareSplitterBase.sol";
 
 /**
  * Based on OpenZeppelin's PaymentSplitter, except it supports modifying the payees/shares without payment distortion.

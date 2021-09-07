@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import "../eip/IERC165.sol";
-import "../eip/IERC721.sol";
-import "./IPaymentAgent.sol";
-import "./IERC721Sellable.sol";
+import { IERC165 } from "../eip/IERC165.sol";
+import { IERC721 } from "../eip/IERC721.sol";
+import { IPaymentAgent } from "./IPaymentAgent.sol";
+import { IERC721Sellable } from "./IERC721Sellable.sol";
 
 /** @dev Custom extension of ERC-721 to support bidding on tokens (using the native currency).
  * Extension to ERC721Sellable. Reuses the `Sale` event.

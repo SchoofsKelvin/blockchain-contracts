@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import "../eip/IERC165.sol";
-import "../eip/IERC2535.sol";
+import { IERC165 } from "../eip/IERC165.sol";
+import { IDiamondCut, IDiamondLoupe } from "../eip/IERC2535.sol";
 
-import "./DiamondLibrary.sol";
+import { DiamondLibrary } from "./DiamondLibrary.sol";
 
 /// Combines IDiamondLoupe, IDiamondCut and IERC165
 contract DiamondCoreFacet is IERC165, IDiamondLoupe, IDiamondCut {

@@ -2,10 +2,8 @@
 
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
-
-import "./SimplePaymentSplitter.sol";
-import "../proxy/ProxySingleton.sol";
+import { SimplePaymentSplitter } from "./SimplePaymentSplitter.sol";
+import { ProxySingleton } from "../proxy/ProxySingleton.sol";
 
 /** Simple factory. Deploy factory once, then easily deploy new */
 contract SimplePaymentSplitterFactory {

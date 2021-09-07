@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: CC0-1.0
 pragma solidity ^0.8.0;
 
-import "./IERC165.sol";
+import { IERC165 } from "./IERC165.sol";
 
 ///
 /// @dev Interface for the NFT Royalty Standard

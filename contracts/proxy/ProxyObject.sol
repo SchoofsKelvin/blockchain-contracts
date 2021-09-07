@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import "./ProxyBeacon.sol";
+import { ProxyBeacon } from "./ProxyBeacon.sol";
 
 contract ProxyObject {
 	// bytes32(uint256(keccak256("eip1967.proxy.beacon")) - 1)
