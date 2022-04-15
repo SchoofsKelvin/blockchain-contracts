@@ -132,3 +132,12 @@ My implementation focuses on cheap but constant gas costs. The numbers below are
     - "true to cancel", "return modifier result if prefixed with certain prefix", "run after main call", ...
 - Write a `DiamondRBACFacet` to add role-based access controls to diamonds using the modifier system
 - Investigate if `diamondCut` can be made cheaper, especially when adding/removing several selectors at once
+
+### BitmapHolder and seed-based random mint for Lost Worlds
+Created to help the Lost Worlds team with a minting issue.
+
+- Added a [`BitmapHolder`](./contracts/lost-worlds/BitmapHolder.sol) implementation:
+  - Eager but relatively cheap initialisation (costs `n/256` (+1 for 256-off numbers) storage slots)
+  - Allows setting and getting any index very cheaply, as you might expect
+  - Allows getting the first free index using a seed (which could be passed `0` to get the first empty index)
+- Added a [`LWRandomMint`](./contracts/lost-worlds/LWRandomMint.sol) which [tests](./test/lost-worlds/LWRandomMint.ts) the `BitmapHolder`'s get-free-index-using-seed system
