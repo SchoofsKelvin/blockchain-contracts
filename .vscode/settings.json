@@ -14,7 +14,7 @@
     "dist/": true,
     "cache/": true,
     "artifacts/": true,
-    "typechain/": true,
+    "typechain/": true
   },
   "search.exclude": {
     "**/.yarn": true,

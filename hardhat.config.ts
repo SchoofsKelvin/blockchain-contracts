@@ -11,7 +11,7 @@ const { INFURA_KEY, TEST_MNEMONIC } = process.env;
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: '0.8.7',
+    version: '0.8.13',
     // https://docs.soliditylang.org/en/latest/using-the-compiler.html#input-description
     settings: {
       optimizer: {
