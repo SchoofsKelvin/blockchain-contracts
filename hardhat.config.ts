@@ -1,10 +1,9 @@
 
 import '@nomiclabs/hardhat-waffle';
+import * as dotenv from 'dotenv';
 import 'hardhat-gas-reporter';
 import 'hardhat-typechain';
-import 'hardhat-watcher';
 import { HardhatUserConfig } from 'hardhat/types';
-import * as dotenv from 'dotenv';
 
 dotenv.config();
 const { INFURA_KEY, TEST_MNEMONIC } = process.env;
@@ -73,17 +72,6 @@ const config: HardhatUserConfig = {
       },
     }
   },
-  watcher: {
-    compile: {
-      tasks: [{ command: 'compile', params: { force: true } }],
-    },
-    // Doesn't actually work because the typechain module gets cached, which includes the contract bytecode
-    // (great for when you're working on tests though)
-    /*'test:simple': {
-      files: ['test/SimplePaymentSplitter.ts', 'typechain/**'],
-      tasks: [{ command: 'test', params: { noCompile: true, testFiles: ['./test/SimplePaymentSplitter.ts'] } }],
-    }*/
-  }
 };
 
 export default config;

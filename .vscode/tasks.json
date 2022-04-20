@@ -4,6 +4,7 @@
 		{
 			"dependsOn": [
 				"Watch contracts",
+				"Watch tests",
 				"Watch TypeScript"
 			],
 			"group": "build",
@@ -14,14 +15,14 @@
 			"type": "shell",
 			"command": "yarn",
 			"args": [
-				"watch:hh"
+				"watch:hhc"
 			],
 			"problemMatcher": [
 				{
 					"background": {
 						"activeOnStart": false,
-						"beginsPattern": "^Compiling",
-						"endsPattern": "^(Successfully generated Typechain artifacts!|Task .* failed)$"
+						"beginsPattern": "^\\[WATCH\\] Compiling solidity",
+						"endsPattern": "^\\[WATCH\\] Compiling finished"
 					},
 					"fileLocation": "relative",
 					"owner": "hardhat",
@@ -43,8 +44,8 @@
 				{
 					"background": {
 						"activeOnStart": false,
-						"beginsPattern": "^Compiling",
-						"endsPattern": "^(Successfully generated Typechain artifacts!|Task .* failed\\.)$"
+						"beginsPattern": "^\\[WATCH\\] Compiling solidity",
+						"endsPattern": "^\\[WATCH\\] Compiling finished"
 					},
 					"fileLocation": "relative",
 					"owner": "hardhat",
@@ -65,7 +66,42 @@
 				}
 			],
 			"label": "Watch contracts",
-			"detail": "Automatically run hardhat typechain when contracts change",
+			"detail": "Automatically compile contracts and run typechain when contract sources change",
+			"isBackground": true
+		},
+		{
+			"type": "shell",
+			"command": "yarn",
+			"args": [
+				"watch:hht"
+			],
+			"problemMatcher": [
+				{
+					"background": {
+						"activeOnStart": false,
+						"beginsPattern": "^\\[WATCH\\] Running tests",
+						"endsPattern": "^\\[WATCH\\] Testing finished"
+					},
+					"fileLocation": "absolute",
+					"owner": "hardhat",
+					"source": "watch-test",
+					"severity": "error",
+					"pattern": [
+						{
+							"regexp": "^Test failed: (.*)$",
+							"message": 1
+						},
+						{
+							"regexp": "^at (.*):(\\d+):(\\d+)$",
+							"file": 1,
+							"line": 2,
+							"column": 3
+						}
+					]
+				}
+			],
+			"label": "Watch tests",
+			"detail": "Automatically run tests when typechain output changes",
 			"isBackground": true
 		},
 		{
