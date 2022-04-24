@@ -4644,9 +4644,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"eth-gas-reporter@npm:^0.2.24, eth-gas-reporter@npm:^0.2.25":
-  version: 0.2.25
-  resolution: "eth-gas-reporter@npm:0.2.25"
+"eth-gas-reporter@https://github.com/SchoofsKelvin/eth-gas-reporter#feature/async-gas-per-test":
+  version: 0.2.24
+  resolution: "eth-gas-reporter@https://github.com/SchoofsKelvin/eth-gas-reporter.git#commit=aec0b53766d5beadc21674e62371002e780174a8"
   dependencies:
     "@ethersproject/abi": ^5.0.0-beta.146
     "@solidity-parser/parser": ^0.14.0
@@ -4668,7 +4668,7 @@ __metadata:
   peerDependenciesMeta:
     "@codechecks/client":
       optional: true
-  checksum: 3bfa81e554b069bb817f2a073a601a0429e6b582c56ad99db0727dc2a102ab00fc27888820b8a042a194a8fb7d40954d10cd7b011ede6b8170285d2d5a88666c
+  checksum: fa4f747bf22eae9c7204bdd2ea9f4d40a862c721f0a1a6201cab9b2bf9ceb07e5d1948235a2118b94d6e6002027b2ec07fb1050ebc2dfbdfc18f678deade05f4
   languageName: node
   linkType: hard
 
