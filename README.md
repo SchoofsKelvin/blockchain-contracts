@@ -133,11 +133,17 @@ My implementation focuses on cheap but constant gas costs. The numbers below are
 - Write a `DiamondRBACFacet` to add role-based access controls to diamonds using the modifier system
 - Investigate if `diamondCut` can be made cheaper, especially when adding/removing several selectors at once
 
-### BitmapHolder and seed-based random mint for Lost Worlds
+### Bitmap with seed-based random index generation
 Created to help the Lost Worlds team with a minting issue.
 
-- Added a [`BitmapHolder`](./contracts/lost-worlds/BitmapHolder.sol) implementation:
-  - Eager but relatively cheap initialisation (costs `n/256` (+1 for 256-off numbers) storage slots)
-  - Allows setting and getting any index very cheaply, as you might expect
+- Added a [`BitmapHolder`](./contracts/bitmap/Bitmap.sol) implementation:
+  - Lazy initialisation results in a nearly neglegible gas cost (but forbids re-initialisation to clear the bitmap)
+  - Allows setting (2 storage reads/writes) and getting (1 storage read) any index very cheaply, as you might expect. 
   - Allows getting the first free index using a seed (which could be passed `0` to get the first empty index)
-- Added a [`LWRandomMint`](./contracts/lost-worlds/LWRandomMint.sol) which [tests](./test/lost-worlds/LWRandomMint.ts) the `BitmapHolder`'s get-free-index-using-seed system
+    - Should a free index be found at the given index (or same storage slot), this would be about 7k gas
+    - Should a free index be found within 1000 bits, this would only cost about 40k gas
+    - The worst case for a 10k bitmap (i.e. only index 0 is free and you start looking at 1) costs about 140k gas
+    - The worst case for a bitmap of size 100k (index 0 free, start at index 1) would be about 960k gas
+    - In short: don't expect this to remain cheap for **big** bitmaps. Something sequential (cheap) might be better.
+  - Read the comments in [`BitmapHolder.sol`](./contracts/bitmap/Bitmap.sol) for implementation details and extra info regarding gas cost.
+- Check the gas reporter outputs of the [test file](./test/bitmap/Bitmap.ts) (and [`BitmapTest`](./contracts/bitmap/BitmapTest.sol) used to provide a test interface)
